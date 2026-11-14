@@ -5,6 +5,7 @@ public struct Picks: Codable, Sendable {
     public var chosen: [String: Set<String>] = [:]       // section id -> option keys
     public var retry: Set<String> = []                    // section ids with "none of these"
     public var sectionNotes: [String: String] = [:]
+    public var annotated: [String: [String: String]] = [:]    // question id -> option key -> annotated PNG path
     public var feedback: String = ""
 
     public init() {}
@@ -46,7 +47,7 @@ public enum AnswerText {
             if items.isEmpty {
                 out = "no pick"
             } else {
-                out = items.map(itemText).joined(separator: "; ")
+                out = items.map { itemText($0, annotated: picks.annotated[s.id]?[$0.key]) }.joined(separator: "; ")
             }
         }
         if let n = picks.sectionNotes[s.id]?.trimmingCharacters(in: .whitespacesAndNewlines), !n.isEmpty {
@@ -55,10 +56,11 @@ public enum AnswerText {
         return out
     }
 
-    static func itemText(_ i: Item) -> String {
+    static func itemText(_ i: Item, annotated: String?) -> String {
         var t = i.key
         if let n = i.answerName { t += " \"\(n)\"" }
         if let f = i.fileName, f != i.answerName { t += " (\(f))" }
+        if let a = annotated { t += " [annotated: \(a)]" }
         return t
     }
 }

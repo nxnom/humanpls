@@ -161,6 +161,76 @@ final class CoreTests: XCTestCase {
         XCTAssertTrue(ImageMeta.read(path: path).contains { $0.section == "Text in file" && $0.key == "parameters" })
     }
 
+    // MARK: marks and annotations
+
+    func showJob() throws -> Job { try builder().show(id: "look", title: nil, paths: ["c.mp4", "a.png"]) }
+
+    func testMarkTimeText() {
+        XCTAssertEqual(Mark.format(0), "0:00.0")
+        XCTAssertEqual(Mark.format(2.44), "0:02.4")
+        XCTAssertEqual(Mark.format(65.96), "1:06.0")
+        XCTAssertEqual(Mark.format(-3), "0:00.0")
+    }
+
+    func testMarksStaySortedAndEditable() {
+        var st = ShowState()
+        let late = st.addMark("A", time: 9)
+        _ = st.addMark("A", time: 2)
+        XCTAssertEqual(st.marks["A"]?.map { $0.time }, [2, 9])
+        st.setNote("A", id: late.id, note: "cut here")
+        XCTAssertEqual(st.marks["A"]?.last?.note, "cut here")
+        st.removeMark("A", id: late.id)
+        XCTAssertEqual(st.marks["A"]?.count, 1)
+    }
+
+    func testShowAnswer() throws {
+        let job = try showJob()
+        var st = ShowState()
+        XCTAssertEqual(ShowAnswer.make(job: job, state: st), "[look]")
+        let m = st.addMark("A", time: 2.4); st.setNote("A", id: m.id, note: "hand glitch")
+        _ = st.addMark("A", time: 3.14)
+        st.annotated["B"] = "/x/a-annotated.png"
+        st.message = "  fix these  "
+        XCTAssertEqual(ShowAnswer.make(job: job, state: st),
+                       "[look]\nc.mp4: @0:02.4 \"hand glitch\"; @0:03.1\na.png: annotated /x/a-annotated.png\nfix these")
+    }
+
+    func testAnnotationUndoRedo() {
+        var set = AnnotationSet()
+        set.add(Shape(kind: .rect, points: [Pt(0, 0), Pt(50, 40)]))
+        set.add(Shape(kind: .arrow, points: [Pt(5, 5), Pt(90, 60)]))
+        XCTAssertEqual(set.shapes.count, 2)
+        set.undo()
+        XCTAssertEqual(set.shapes.map { $0.kind }, [.rect])
+        XCTAssertTrue(set.canRedo)
+        set.redo()
+        XCTAssertEqual(set.shapes.count, 2)
+        set.undo()
+        set.add(Shape(kind: .pen, points: [Pt(0, 0), Pt(3, 3), Pt(8, 2)]))
+        XCTAssertFalse(set.canRedo, "a new shape clears redo")
+        set.clear()
+        XCTAssertTrue(set.isEmpty)
+    }
+
+    func testAnnotationIgnoresStrayClicks() {
+        var set = AnnotationSet()
+        set.add(Shape(kind: .rect, points: [Pt(10, 10), Pt(11, 11)]))
+        set.add(Shape(kind: .pen, points: [Pt(1, 1)]))
+        set.add(Shape(kind: .text, points: [Pt(1, 1)], text: "   "))
+        set.add(Shape(kind: .text, points: [Pt(1, 1)], text: "too dark"))
+        XCTAssertEqual(set.shapes.count, 1)
+        XCTAssertEqual(set.shapes[0].text, "too dark")
+    }
+
+    func testAnnotationRoundTripsAsJSON() throws {
+        var set = AnnotationSet()
+        set.add(Shape(kind: .arrow, points: [Pt(1, 2), Pt(30, 40)], color: "#0A84FF"))
+        let data = try Coding.encoder().encode(set)
+        let back = try Coding.decoder().decode(AnnotationSet.self, from: data)
+        XCTAssertEqual(back.shapes.first?.points.last, Pt(30, 40))
+        XCTAssertEqual(back.shapes.first?.color, "#0A84FF")
+    }
+
     // MARK: answer text
 
     func job2() throws -> Job {
@@ -195,6 +265,16 @@ final class CoreTests: XCTestCase {
         XCTAssertEqual(AnswerText.make(job: job, picks: p), "[pl] no pick")
         p.chosen["pl"] = ["A", "C"]
         XCTAssertEqual(AnswerText.make(job: job, picks: p), "[pl] picked: A \"Wide\" (a.png); C \"Clip\" (c.mp4)")
+    }
+
+    func testAnswerWithAnnotatedImage() throws {
+        var a = JobBuilder.PickArgs(); a.id = "pl"
+        a.positional = ["a.png::Wide", "c.mp4"]
+        let job = try builder().pick(a)
+        var p = Picks(job: job)
+        p.chosen["pl"] = ["A"]
+        p.annotated["pl"] = ["A": "/s/a-annotated.png"]
+        XCTAssertEqual(AnswerText.make(job: job, picks: p), "[pl] picked: A \"Wide\" (a.png) [annotated: /s/a-annotated.png]")
     }
 
     // MARK: history
