@@ -52,4 +52,4 @@ The visual parts (layout, clicks, zoom feel) are checked by hand.
 
 ## maggot
 
-The `option-select` maggot tool is a bridge: it finds `humanpls` and passes the arguments on.
+The `humanpls` maggot tool is a bridge: it finds the `humanpls` command and passes the arguments on. It lives in the maggot drafts folder, not in this repo.
