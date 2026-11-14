@@ -159,7 +159,7 @@ struct OptionCard: View {
     var on: Bool { model.chosen(section).contains(item.key) }
     func pick() { model.toggle(section, item.key) }
     var title: String {
-        if let r = item.cellRow, let c = item.cellCol { return item.answerName ?? "Row \(r) · Col \(c)" }
+        if let r = item.cellRow, let c = item.cellCol { return item.answerName ?? "R\(r) · C\(c)" }
         return item.answerName ?? item.fileName ?? "Option \(item.key)"
     }
 

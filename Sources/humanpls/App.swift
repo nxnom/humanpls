@@ -26,8 +26,8 @@ final class PopupWindow: NSObject, NSWindowDelegate {
         super.init()
         window.title = title
         window.level = .floating
-        // Show on the desktop (Space) you are on now, also over a full-screen terminal.
-        window.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
+        // Visible on every desktop (Space), also over a full-screen terminal, so it follows you while you decide.
+        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         window.isReleasedWhenClosed = false
         window.delegate = self
         window.contentView = FirstMouseHostingView(rootView: content)
