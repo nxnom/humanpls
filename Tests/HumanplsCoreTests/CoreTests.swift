@@ -409,38 +409,6 @@ final class CoreTests: XCTestCase {
         XCTAssertEqual(AnswerText.make(job: job, picks: p), "[logo] picked: G (sheet.png row 2 col 3) | crops: G /c/sheet-r2c3.png")
     }
 
-    func testLayoutFromCommandLineAndJSON() throws {
-        var a = JobBuilder.PickArgs(); a.id = "l"; a.positional = ["a.png", "b.wav"]
-        XCTAssertNil(try builder().pick(a).sections[0].layout, "automatic by default")
-        XCTAssertEqual(try builder().pick(a).sections[0].effectiveLayout, .grid)
-        a.layout = "detail"
-        XCTAssertEqual(try builder().pick(a).sections[0].layout, .detail)
-        a.layout = "Dense"
-        XCTAssertEqual(try builder().pick(a).sections[0].layout, .dense, "case does not matter")
-        a.layout = "tiles"
-        XCTAssertThrowsError(try builder().pick(a))
-
-        // image sheets start dense unless told otherwise
-        let sheet = try makeSheet(cols: 2, rows: 2, name: "lay.png")
-        var s = JobBuilder.PickArgs(); s.id = "s"; s.slice = "2x2"; s.positional = [sheet]
-        XCTAssertEqual(try builder().pick(s).sections[0].effectiveLayout, .dense)
-        s.layout = "grid"
-        XCTAssertEqual(try builder().pick(s).sections[0].effectiveLayout, .grid)
-
-        try #"{"sections": [{"id": "a", "layout": "detail", "items": [{"text": "x"}, {"text": "y"}]}, {"id": "b", "items": [{"text": "z"}]}]}"#
-            .write(toFile: tmp + "/lay.json", atomically: true, encoding: .utf8)
-        var j = JobBuilder.PickArgs(); j.id = "j"; j.itemsFile = "lay.json"
-        let q = try builder().pick(j).sections
-        XCTAssertEqual(q[0].layout, .detail)
-        XCTAssertNil(q[1].layout)
-        j.layout = "dense"       // the command line fills only the questions that did not choose
-        let q2 = try builder().pick(j).sections
-        XCTAssertEqual([q2[0].layout, q2[1].layout], [.detail, .dense])
-        try #"{"sections": [{"id": "a", "layout": "wat", "items": [{"text": "x"}]}]}"#.write(toFile: tmp + "/bad.json", atomically: true, encoding: .utf8)
-        j.itemsFile = "bad.json"
-        XCTAssertThrowsError(try builder().pick(j))
-    }
-
     // MARK: answer text
 
     func job2() throws -> Job {

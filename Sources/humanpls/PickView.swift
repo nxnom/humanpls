@@ -20,8 +20,6 @@ final class PickModel: ObservableObject {
     @Published var picks: Picks { didSet { override = nil } }
     @Published var override: String? = nil
     @Published var showPreview = false
-    @Published var layouts: [String: QuestionLayout] = [:]     // what the person chose, per question
-    @Published var focus: [String: String] = [:]               // the option shown large in the Detail layout, per question
     let store = AnnotationStore()
     var hovered: (question: String, key: String)?     // the option under the mouse, for Quick Look
     var onFinish: (FinishAction, String, Picks) -> Void = { _, _, _ in }
@@ -34,22 +32,6 @@ final class PickModel: ObservableObject {
     var computed: String { AnswerText.make(job: job, picks: picks) }
     var text: String { override ?? computed }
 
-    // MARK: layouts
-
-    func layout(_ q: Question) -> QuestionLayout { layouts[q.id] ?? q.effectiveLayout }
-    func setLayout(_ q: Question, _ l: QuestionLayout) {
-        layouts[q.id] = l
-        if focus[q.id] == nil { focus[q.id] = chosen(q).sorted().first ?? q.items.first?.key }
-    }
-    /// The option shown large in the Detail layout: the one the person selected, else the first picked one, else the first.
-    func focusedItem(_ q: Question) -> Item? {
-        q.items.first { $0.key == focus[q.id] } ?? q.items.first { $0.key == chosen(q).sorted().first } ?? q.items.first
-    }
-    func moveFocus(_ q: Question, _ d: Int) {
-        guard !q.items.isEmpty else { return }
-        let i = q.items.firstIndex { $0.key == focusedItem(q)?.key } ?? 0
-        focus[q.id] = q.items[min(q.items.count - 1, max(0, i + d))].key
-    }
     /// Everything picked so far, for the sidebar.
     var pickedItems: [PickedEntry] {
         job.sections.flatMap { q in q.items.filter { chosen(q).contains($0.key) }.map { PickedEntry(question: q, item: $0) } }
@@ -96,7 +78,7 @@ final class PickModel: ObservableObject {
     func quickLook(_ q: Question) {
         let files = q.items.filter { $0.path != nil }
         guard !files.isEmpty else { NSSound.beep(); return }
-        let start = (layout(q) == .detail ? focus[q.id] : nil) ?? (hovered?.question == q.id ? hovered?.key : nil) ?? chosen(q).sorted().first
+        let start = (hovered?.question == q.id ? hovered?.key : nil) ?? chosen(q).sorted().first
         QuickLook.shared.show(files.map { $0.path! }, index: files.firstIndex { $0.key == start } ?? 0)
     }
 
@@ -401,40 +383,25 @@ struct SectionView: View {
                 }
                 Spacer(minLength: 12)
                 if section.slice != nil { sliceControls }
-                layoutPicker
                 if section.multi {
                     let all = model.chosen(section).count == section.items.count
                     Text("\(model.chosen(section).count) of \(section.items.count)").font(.caption).foregroundStyle(.secondary)
                     Button(all ? "Clear" : "Select all") { model.selectAll(section, !all) }.controlSize(.small)
                 }
             }
-            switch model.layout(section) {
-            case .grid:
+            if section.slice != nil {
+                // the cells of an image sheet: compact tiles, many to a row
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 140, maximum: 230), spacing: 6)], spacing: 6) {
+                    ForEach(section.items) { CellTile(item: $0, section: section, model: model) }
+                }
+            } else {
                 LazyVGrid(columns: gridColumns, spacing: 12) {
                     ForEach(section.items) { OptionCard(item: $0, section: section, model: model) }
                 }
-            case .dense:
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 140, maximum: 230), spacing: 6)], spacing: 6) {
-                    ForEach(section.items) { it in
-                        if isVisual(it) { DenseTile(item: it, section: section, model: model) }
-                        else { OptionCard(item: it, section: section, model: model) }
-                    }
-                }
-            case .detail:
-                DetailLayout(section: section, model: model)
             }
             retryCard
             TextField("Note on \(only ? "your choice" : section.heading.lowercased()) (optional)", text: model.sectionNote(section)).textFieldStyle(.roundedBorder)
         }
-    }
-
-    /// Grid, Detail or Dense.
-    var layoutPicker: some View {
-        Picker("", selection: Binding(get: { model.layout(section) }, set: { model.setLayout(section, $0) })) {
-            Image(systemName: "square.grid.2x2").tag(QuestionLayout.grid).help("Grid: a card for each option")
-            Image(systemName: "sidebar.left").tag(QuestionLayout.detail).help("Detail: a list and a large preview")
-            Image(systemName: "square.grid.3x3").tag(QuestionLayout.dense).help("Dense: only big thumbnails")
-        }.pickerStyle(.segmented).labelsHidden().frame(width: 120)
     }
 
     /// Fix the grid by hand when the automatic one is wrong.
@@ -539,16 +506,10 @@ struct PickRoot: View {
         if c == "]" { go(1, proxy); return .handled }
         if c == "[" { go(-1, proxy); return .handled }
         guard let s = currentSection else { return .ignored }
-        if model.layout(s) == .detail {
-            if k.key == .upArrow { model.moveFocus(s, -1); return .handled }
-            if k.key == .downArrow { model.moveFocus(s, 1); return .handled }
-            if k.key == .return, let it = model.focusedItem(s) { model.toggle(s, it.key); return .handled }
-        }
         if c == "0" { model.toggleRetry(s); return .handled }
         if c == " " { model.quickLook(s); return .handled }
         if c.count == 1, let ch = c.uppercased().first, ch.isLetter,
            let it = s.items.first(where: { $0.key == String(ch) }) {
-            model.focus[s.id] = it.key
             model.toggle(s, it.key); return .handled
         }
         return .ignored

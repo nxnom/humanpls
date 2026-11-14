@@ -280,13 +280,13 @@ struct ShowRoot: View {
                     .keyboardShortcut("y", modifiers: .command).controlSize(.small)
                 if let it = model.current, it.kind == .image, let p = it.path { InfoButton(path: p) }
                 if let it = model.current, let p = it.path {
-                    Button("Reveal in Finder") { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: p)]) }
-                    Button("Copy file path") { Sender.copy(p) }
+                    Button("Reveal in Finder") { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: p)]) }.fixedSize()
+                    Button("Copy file path") { Sender.copy(p) }.fixedSize()
                 }
-                TextField("Message (optional)", text: $model.state.message).textFieldStyle(.roundedBorder).frame(maxWidth: 260)
+                TextField("Message (optional)", text: $model.state.message).textFieldStyle(.roundedBorder).frame(minWidth: 90, maxWidth: 260)
                 Button { model.copyAnswer() } label: {
                     Label(model.copied ? "Copied" : "Copy answer", systemImage: model.copied ? "checkmark" : "doc.on.doc")
-                }.keyboardShortcut("c", modifiers: [.command, .shift]).help("Copy the answer text (⇧⌘C). The window stays open.")
+                }.keyboardShortcut("c", modifiers: [.command, .shift]).help("Copy the answer text (⇧⌘C). The window stays open.").fixedSize()
                 Button(model.waiting ? "Send answer" : "Send") { model.finish(.send) }
                     .keyboardShortcut(.return, modifiers: .command).buttonStyle(.borderedProminent)
             }.padding(10)

@@ -2,7 +2,7 @@ import SwiftUI
 import AppKit
 import HumanplsCore
 
-/// The large view of one option: used by the viewer (`show`) and by the Detail layout in `pick`.
+/// The large view of one option, used by the viewer (`show`).
 struct ItemViewer: View {
     let item: Item
     var store: AnnotationStore? = nil               // image drawing tools, when given

@@ -167,7 +167,6 @@ public struct JobBuilder {
         public var noPreselect = false
         public var itemsFile: String?
         public var slice: String?                 // "auto" or "4x3" (columns x rows): cut one image sheet into cells
-        public var layout: String?                // grid, detail or dense (for every question made from the command line)
         public var positional: [String] = []
         public var sections: [[String]] = []     // each: [TITLE, OPTION...]
         public init() {}
@@ -205,10 +204,6 @@ public struct JobBuilder {
             sections += try jsonSections(file: f, args: a, rec: rec, def: def)
         }
         guard !sections.isEmpty else { throw JobError("give options: file paths, --section TITLE OPTION..., or --items file.json") }
-        if let l = a.layout {
-            guard let ql = QuestionLayout(rawValue: l.lowercased()) else { throw JobError("--layout must be grid, detail or dense (got \(l))") }
-            for i in sections.indices where sections[i].layout == nil { sections[i].layout = ql }
-        }
         let ids = sections.map { $0.id }
         guard Set(ids).count == ids.count else { throw JobError("question ids must be unique: \(ids)") }
         return Job(id: a.id, mode: .pick, title: a.title, question: a.question, sections: sections)
@@ -261,7 +256,7 @@ public struct JobBuilder {
         }
 
         if let obj = any as? [String: Any], let secs = obj["sections"] as? [[String: Any]] {
-            var built = try secs.enumerated().map { (i, s) in
+            return try secs.enumerated().map { (i, s) in
                 let title = s["title"] as? String
                 let id = (s["id"] as? String) ?? Self.slug(title ?? "", fallback: "q\(i + 1)")
                 let recS = (s["recommend"] as? String).map { [$0.uppercased()] } ?? (s["recommend"] as? [String])?.map { $0.uppercased() } ?? []
@@ -279,12 +274,6 @@ public struct JobBuilder {
                 return try build(id: id, title: title, question: s["question"] as? String, multi: s["multi"] as? Bool ?? a.multi,
                                  raw: s["items"] as? [Any] ?? [], recommend: recS, defaults: defS, preselect: s["preselect"] as? Bool ?? !a.noPreselect)
             }
-            for (i, s) in secs.enumerated() {
-                guard let l = s["layout"] as? String else { continue }
-                guard let ql = QuestionLayout(rawValue: l.lowercased()) else { throw JobError("question \(built[i].id): layout must be grid, detail or dense (got \(l))") }
-                built[i].layout = ql
-            }
-            return built
         }
         let list: [Any]
         if let l = any as? [Any] { list = l } else if let o = any as? [String: Any], let l = o["items"] as? [Any] { list = l }

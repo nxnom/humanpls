@@ -14,7 +14,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/images/pick-sheet.png" alt="humanpls: twelve logos cut from one image sheet, two picked" width="900">
+  <img src="docs/images/hero.png" alt="humanpls: a popup with four questions for a website launch: hero photo, headline, intro voice and teaser clip" width="900">
 </p>
 
 ## Why
@@ -31,32 +31,30 @@ humanpls fixes this. The agent runs one command, a popup opens with the options,
 humanpls pick --id narrator --question "Which take fits?" a.wav::calm "*b.wav::older, raspy" c.wav
 humanpls pick --id ep02 --section Name text:Aung text:Maung --section Plates --multi a.png b.png c.png
 humanpls pick --id logo --slice auto logo-sheet.png     # one image with many logos: pick a cell
-humanpls pick --id hero --layout detail a.png b.png c.png   # a list and a large preview
 humanpls show gen/ clip.mp4 notes.md                    # just look at things
 humanpls reopen                                         # open the last popup again
 ```
 
 ## What it looks like
 
+The picture above is one popup with **four questions** for a website launch. The sidebar lists the questions (a check when answered) and keeps **your picks** with thumbnails. Every option is a card you can click: photos, headlines, audio with a waveform, video.
+
 <table>
   <tr>
     <td width="50%" valign="top">
-      <img src="docs/images/compare.png" alt="Two images side by side with synced zoom"><br>
-      <b>Compare.</b> Two images side by side with the same zoom and position, or flip between them with <code>F</code>.
+      <img src="docs/images/compare.png" alt="Two versions of a photo side by side with synced zoom"><br>
+      <b>Compare.</b> Two versions of an image side by side with the same zoom and position, or flip between them with <code>F</code>.
     </td>
     <td width="50%" valign="top">
-      <img src="docs/images/rich-cards.png" alt="Markdown and code cards"><br>
-      <b>Any content.</b> Markdown and code with colors, audio, video, images, PDF, text. Any other file gets a Quick Look card.
+      <img src="docs/images/rich-cards.png" alt="Two code options and a markdown note"><br>
+      <b>Any content.</b> Code and markdown with colors, audio, video, images, PDF, text. Any other file gets a Quick Look card.
     </td>
   </tr>
 </table>
 
-The top screenshot is the **image sheet** feature: the agent made one picture with twelve logos, humanpls found the grid, cut it into twelve cards, and you pick like in any other question. The picked cells come back as separate files.
-
 ## What it does
 
 - **pick**: one popup for one or several questions. A **sidebar** shows the title, the questions (with a check when answered) and **your picks** so far, with thumbnails and a remove button. Each option is a card: text, audio (waveform), image (zoom), video, markdown and code (with syntax colors), HTML, PDF, and any other file (Quick Look thumbnail, Open, Reveal). Pick one or several, "none of these", a note per question, a Recommended badge that starts picked, select all.
-- **Three layouts** per question, switched in the header (or started with `--layout grid|detail|dense`): **Grid** (a card per option), **Detail** (a list on the left and a large preview of one option on the right; `↑` `↓` move, `Return` picks) and **Dense** (only big thumbnails, the default for image sheets).
 - **Image sheets**: `--slice auto` cuts one image (a logo grid, a contact sheet) into cells that you pick like separate options. The grid is found from the empty space between the marks. If it is wrong, use `--slice 4x3` (columns x rows) or the Grid steppers on the card. Each cell is trimmed to its content, so a logo is not a small mark in a big white cell. The picked cells are cut out at full resolution into `~/Library/Application Support/humanpls/crops/` and their paths go into the answer. The sheet itself is never copied or changed.
 - **show**: a viewer with a file list. Images: pinch zoom, pen, rectangle, arrow, text, colors, undo; Info panel with the prompt and seed stored in PNG files; A/B compare (side by side with synced zoom, or flip with `F`). Video: J K L (backward, pause, forward, faster on repeat), frame step, `M` to mark a moment with a note. Audio: waveform, marks.
 - **Send**: the answer is pasted into the terminal that ran the command and Enter is pressed. With tmux it goes to the exact pane, even if you switched apps. Otherwise it goes to the terminal app (needs the Accessibility permission). **Copy answer** (`⇧⌘C`) copies the answer text, shows "Copied", and the popup stays open so you can still change it or press Send. `--wait` prints the answer instead, for agents that can wait. Paths with spaces are put in quotes in the answer.

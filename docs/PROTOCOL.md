@@ -4,14 +4,10 @@
 
 ```
 humanpls pick --id ID [--title T] [--question Q] [--multi] [--recommend KEY]... [--default KEY]... [--no-preselect]
-              [--items FILE.json] [--slice auto|COLSxROWS] [--layout grid|detail|dense] [--section TITLE OPTION...]... [--wait] [--timeout SECONDS] [--dump-job] [OPTION...]
+              [--items FILE.json] [--slice auto|COLSxROWS] [--section TITLE OPTION...]... [--wait] [--timeout SECONDS] [--dump-job] [OPTION...]
 humanpls show [--id ID] [--title T] [--compare] [--wait] [--dump-job] FILE_OR_FOLDER...
 humanpls reopen [ID]      humanpls list      humanpls quit      humanpls install-cli [DIR]      humanpls serve      humanpls selftest
 ```
-
-`--layout` sets how the options are laid out to start with: `grid` (a card each), `detail` (a list and a large preview) or `dense`
-(only big thumbnails). Without it, image sheets start dense and everything else starts as a grid. The person can switch in the popup.
-In JSON a question can have `"layout"`; the command line only fills the questions that did not choose one.
 
 `--slice` takes exactly one image (the sheet) and turns its cells into the options. `auto` finds the grid from the empty space
 between the marks (small cell numbers are ignored) and fails with a hint if the cells touch. `4x3` means 4 columns by 3 rows.
@@ -44,7 +40,7 @@ A list, `{"items": [...]}` or `{"sections": [...]}`.
 ```
 
 Item keys: one of `file`, `text`, `markdown`, `code` (+ `language`), `html`, `url`; and `label`, `note`, `recommended`, `selected`.
-Relative `file` paths are relative to the JSON file. Question keys: `id`, `title`, `question`, `multi`, `recommend`, `default`, `preselect`, `layout`, `slice`.
+Relative `file` paths are relative to the JSON file. Question keys: `id`, `title`, `question`, `multi`, `recommend`, `default`, `preselect`, `slice`.
 
 ## Answer text
 
