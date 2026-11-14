@@ -129,6 +129,38 @@ final class CoreTests: XCTestCase {
         XCTAssertEqual(item.label, "Backup")
     }
 
+    // MARK: image metadata
+
+    func chunk(_ type: String, _ body: Data) -> Data {
+        var d = Data()
+        let n = UInt32(body.count)
+        d += [UInt8(n >> 24), UInt8((n >> 16) & 255), UInt8((n >> 8) & 255), UInt8(n & 255)]
+        d += Data(type.utf8) + body + Data([0, 0, 0, 0])      // crc is not checked by the reader
+        return d
+    }
+
+    func testPNGTextChunks() throws {
+        var png = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
+        png += chunk("IHDR", Data(count: 13))
+        png += chunk("tEXt", Data("parameters".utf8) + [0] + Data("a calm house, seed 42".utf8))
+        let packed = try (Data("zipped prompt text".utf8) as NSData).compressed(using: .zlib) as Data
+        png += chunk("zTXt", Data("workflow".utf8) + [0, 0] + Data([0x78, 0x9C]) + packed)
+        png += chunk("iTXt", Data("Title".utf8) + [0, 0, 0] + Data("en".utf8) + [0] + Data("Titre".utf8) + [0] + Data("Maison calme".utf8))
+        png += chunk("IDAT", Data(count: 20))
+        png += chunk("tEXt", Data("afterdata".utf8) + [0] + Data("ignored? no, read before IEND".utf8))
+        png += chunk("IEND", Data())
+        let path = tmp + "/meta.png"
+        try png.write(to: URL(fileURLWithPath: path))
+        let chunks = ImageMeta.pngTextChunks(path: path)
+        XCTAssertEqual(chunks.map { $0.0 }, ["parameters", "workflow", "Title", "afterdata"])
+        XCTAssertEqual(chunks[0].1, "a calm house, seed 42")
+        XCTAssertEqual(chunks[1].1, "zipped prompt text")
+        XCTAssertEqual(chunks[2].1, "Maison calme")
+        XCTAssertTrue(ImageMeta.pngTextChunks(path: tmp + "/a.png").isEmpty, "not a PNG: no chunks, no crash")
+        XCTAssertTrue(ImageMeta.pngTextChunks(path: tmp + "/missing.png").isEmpty)
+        XCTAssertTrue(ImageMeta.read(path: path).contains { $0.section == "Text in file" && $0.key == "parameters" })
+    }
+
     // MARK: answer text
 
     func job2() throws -> Job {

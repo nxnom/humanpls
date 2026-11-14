@@ -19,25 +19,39 @@ final class PopupWindow: NSObject, NSWindowDelegate {
     init<V: View>(job: Job, title: String, autosave: String, size: NSSize, content: V,
                   onDone: @escaping (FinishAction, String, Picks?) -> Void) {
         self.job = job; self.onDone = onDone
+        self.sizeKey = "size." + autosave
         window = NSWindow(contentRect: NSRect(origin: .zero, size: size),
                           styleMask: [.titled, .closable, .resizable, .miniaturizable], backing: .buffered, defer: false)
         super.init()
         window.title = title
         window.level = .floating
+        // Show on the desktop (Space) you are on now, also over a full-screen terminal.
+        window.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
         window.isReleasedWhenClosed = false
         window.delegate = self
         window.contentView = FirstMouseHostingView(rootView: content)
-        let had = window.setFrameUsingName(autosave)
-        window.setFrameAutosaveName(autosave)
-        if !had { placeOnMouseScreen(size) }
+        // Remember the size only. The position is always the screen where the mouse is now (you may use several displays).
+        var s = size
+        if let saved = UserDefaults.standard.string(forKey: sizeKey) {
+            let r = NSSizeFromString(saved)
+            if r.width >= 480, r.height >= 360 { s = r }
+        }
+        placeOnMouseScreen(s)
     }
+
+    let sizeKey: String
 
     func placeOnMouseScreen(_ size: NSSize) {
         let mouse = NSEvent.mouseLocation
         let screen = NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main
         if let f = screen?.visibleFrame {
-            window.setFrame(NSRect(x: f.midX - size.width / 2, y: f.midY - size.height / 2, width: size.width, height: size.height), display: false)
+            let w = min(size.width, f.width - 40), h = min(size.height, f.height - 40)
+            window.setFrame(NSRect(x: f.midX - w / 2, y: f.midY - h / 2, width: w, height: h), display: false)
         } else { window.center() }
+    }
+
+    func windowDidEndLiveResize(_ n: Notification) {
+        UserDefaults.standard.set(NSStringFromSize(window.frame.size), forKey: sizeKey)
     }
 
     func show() {

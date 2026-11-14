@@ -138,6 +138,7 @@ struct ShowRoot: View {
                     InfoText(item: it)
                 }
                 Spacer()
+                if let it = model.current, it.kind == .image, let p = it.path { InfoButton(path: p) }
                 if let it = model.current, let p = it.path {
                     Button("Reveal in Finder") { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: p)]) }
                     Button("Copy path") { Sender.copy(p) }

@@ -194,6 +194,7 @@ struct ImageSheet: View {
         VStack(spacing: 0) {
             HStack { Text(title).font(.headline); Spacer()
                 Text("Pinch to zoom · drag to move · double-click: fit / 100%").font(.caption).foregroundStyle(.secondary)
+                InfoButton(path: path)
                 Button("Done") { dismiss() }.keyboardShortcut(.escape, modifiers: []) }.padding(10)
             Divider()
             ZoomImage(path: path)
