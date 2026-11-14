@@ -8,14 +8,23 @@ final class ShowModel: ObservableObject {
     let job: Job
     let waiting: Bool
     var items: [Item] { job.sections.first?.items ?? [] }
-    @Published var selection: String?
+    @Published var selected: Set<String> = []
+    @Published var compareMode = 0          // 0 side by side, 1 flip
+    @Published var showB = false
     @Published var state = ShowState()
     let store = AnnotationStore()
     var onFinish: (FinishAction, String) -> Void = { _, _ in }
 
     init(job: Job, waiting: Bool) {
         self.job = job; self.waiting = waiting
-        selection = job.sections.first?.items.first?.key
+        if let k = job.sections.first?.items.first?.key { selected = [k] }
+    }
+
+    /// Two images picked with Command-click: compare them.
+    var comparePair: (Item, Item)? {
+        let picked = items.filter { selected.contains($0.key) }
+        guard picked.count == 2, picked.allSatisfy({ $0.kind == .image && fileExists($0.path) }) else { return nil }
+        return (picked[0], picked[1])
     }
 
     @Published var focusMark: UUID?
@@ -42,9 +51,9 @@ final class ShowModel: ObservableObject {
         }
     }
 
-    var current: Item? { items.first { $0.key == selection } ?? items.first }
+    var current: Item? { items.first { selected.contains($0.key) } ?? items.first }
     var index: Int { items.firstIndex { $0.key == current?.key } ?? 0 }
-    func move(_ d: Int) { guard !items.isEmpty else { return }; selection = items[min(items.count - 1, max(0, index + d))].key }
+    func move(_ d: Int) { guard !items.isEmpty else { return }; selected = [items[min(items.count - 1, max(0, index + d))].key] }
 
     var text: String { ShowAnswer.make(job: job, state: state) }
 
@@ -184,20 +193,62 @@ struct MarksPanel: View {
     }
 }
 
+/// Two images next to each other (zoom and position stay in sync), or one place where F flips between them.
+struct CompareView: View {
+    @ObservedObject var model: ShowModel
+    let a: Item
+    let b: Item
+    @State var hub = SyncHub()
+
+    func tag(_ letter: String, _ it: Item) -> some View {
+        Text("\(letter)  \(it.fileName ?? "")").font(.caption.weight(.semibold)).foregroundStyle(.white)
+            .padding(.horizontal, 8).padding(.vertical, 3).background(Color.black.opacity(0.55), in: Capsule())
+            .padding(8).allowsHitTesting(false)
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Picker("", selection: $model.compareMode) { Text("Side by side").tag(0); Text("Flip").tag(1) }
+                    .pickerStyle(.segmented).labelsHidden().frame(width: 200)
+                if model.compareMode == 1 {
+                    Button { model.showB.toggle() } label: { Label("Flip", systemImage: "arrow.left.arrow.right") }.controlSize(.small)
+                    Text("showing \(model.showB ? "B" : "A")").font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+            }.padding(.horizontal, 10).padding(.vertical, 6).background(.bar)
+            if model.compareMode == 0 {
+                HStack(spacing: 1) {
+                    ZoomImage(path: a.path ?? "", hub: hub).overlay(alignment: .topLeading) { tag("A", a) }
+                    ZoomImage(path: b.path ?? "", hub: hub).overlay(alignment: .topLeading) { tag("B", b) }
+                }.background(Color.black)
+            } else {
+                ZoomImage(path: (model.showB ? b : a).path ?? "")
+                    .overlay(alignment: .topLeading) { tag(model.showB ? "B" : "A", model.showB ? b : a) }
+            }
+        }
+        .id("\(a.key)\(b.key)\(model.compareMode)")
+    }
+}
+
 struct ShowRoot: View {
     @ObservedObject var model: ShowModel
 
     var body: some View {
         VStack(spacing: 0) {
             HSplitView {
-                List(model.items, selection: Binding(get: { model.current?.key }, set: { model.selection = $0 })) { it in
+                List(model.items, selection: $model.selected) { it in
                     HStack(spacing: 10) {
                         Thumb(item: it).frame(width: 52, height: 36).clipShape(RoundedRectangle(cornerRadius: 5))
                         Text(it.fileName ?? it.key).lineLimit(1).font(.callout)
                     }.tag(it.key).padding(.vertical, 2)
                 }.listStyle(.sidebar).frame(minWidth: 190, idealWidth: 220, maxWidth: 260)
                 VStack(spacing: 0) {
-                    if let it = model.current {
+                    if let pair = model.comparePair {
+                        CompareView(model: model, a: pair.0, b: pair.1)
+                        Text("F flips A and B  ·  ⌘-click another image to change the pair, or click one image to go back")
+                            .font(.caption).foregroundStyle(.secondary).padding(6).frame(maxWidth: .infinity).background(.bar)
+                    } else if let it = model.current {
                         viewer(it).id(it.key)
                         if it.kind == .video || it.kind == .audio { MarksPanel(model: model, item: it) }
                         Text(hint(it)).font(.caption).foregroundStyle(.secondary).padding(6).frame(maxWidth: .infinity).background(.bar)
@@ -226,6 +277,7 @@ struct ShowRoot: View {
         .focusable().focusEffectDisabled()
         .onKeyPress(phases: .down) { k in
             if k.characters.lowercased() == "m", let it = model.current, it.kind == .audio { model.addMark(it); return .handled }
+            if k.characters.lowercased() == "f", model.comparePair != nil { model.showB.toggle(); return .handled }
             if k.characters == " ", let it = model.current, it.kind != .video, it.kind != .audio { model.quickLook(); return .handled }
             return .ignored
         }
@@ -254,7 +306,7 @@ struct ShowRoot: View {
 
     func hint(_ it: Item) -> String {
         switch it.kind {
-        case .image: return "Pinch or scroll to zoom  ·  pick the hand to move  ·  double-click: fit / 100%"
+        case .image: return "Pinch or scroll to zoom  ·  pick the hand to move  ·  double-click: fit / 100%  ·  ⌘-click a second image to compare"
         case .video: return "J ◀◀   K pause   L ▶▶   (press again for faster)   ·   ← → one frame   ·   Space play   ·   M mark"
         case .audio: return "Click the waveform to seek   ·   M mark"
         default: return ""

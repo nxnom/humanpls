@@ -191,8 +191,47 @@ final class FitScrollView: NSScrollView {
     }
 }
 
+/// Keeps several zoomable images at the same zoom and position (for side by side compare).
+/// Positions are relative to each image, so two images of different sizes still line up.
+@MainActor
+final class SyncHub {
+    private var views: [FitScrollView] = []
+    private var syncing = false
+    private var observers: [NSObjectProtocol] = []
+
+    func register(_ v: FitScrollView) {
+        views.append(v)
+        v.contentView.postsBoundsChangedNotifications = true
+        let o = NotificationCenter.default.addObserver(forName: NSView.boundsDidChangeNotification, object: v.contentView, queue: .main) { [weak self, weak v] _ in
+            MainActor.assumeIsolated { if let self, let v { self.propagate(from: v) } }
+        }
+        observers.append(o)
+    }
+
+    func propagate(from a: FitScrollView) {
+        guard !syncing, let docA = a.documentView, docA.frame.width > 0, docA.frame.height > 0 else { return }
+        syncing = true; defer { syncing = false }
+        let vis = a.contentView.bounds
+        let relCenter = CGPoint(x: vis.midX / docA.frame.width, y: vis.midY / docA.frame.height)
+        let relW = vis.width / docA.frame.width
+        for b in views where b !== a {
+            guard let docB = b.documentView, docB.frame.width > 0, relW > 0 else { continue }
+            let mag = b.contentView.frame.width / (relW * docB.frame.width)
+            b.setMagnification(max(b.minMagnification, min(b.maxMagnification, mag)),
+                               centeredAt: CGPoint(x: relCenter.x * docB.frame.width, y: relCenter.y * docB.frame.height))
+        }
+    }
+
+    deinit { observers.forEach { NotificationCenter.default.removeObserver($0) } }
+}
+
 struct ZoomImage: NSViewRepresentable {
     let path: String
+    var hub: SyncHub? = nil
+
+    final class Coordinator { var path = "" }
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
     func makeNSView(context: Context) -> FitScrollView {
         let sv = FitScrollView()
         sv.contentView = CenteringClipView()
@@ -208,9 +247,19 @@ struct ZoomImage: NSViewRepresentable {
             iv.image = img; iv.imageScaling = .scaleAxesIndependently
             sv.documentView = iv; sv.imgSize = img.size
         }
+        context.coordinator.path = path
+        hub?.register(sv)
         return sv
     }
-    func updateNSView(_ v: FitScrollView, context: Context) {}
+
+    /// A new path (flip between two images) keeps the zoom and position.
+    func updateNSView(_ v: FitScrollView, context: Context) {
+        guard context.coordinator.path != path, let iv = v.documentView as? NSImageView, let img = NSImage(contentsOfFile: path) else { return }
+        context.coordinator.path = path
+        if let rep = img.representations.first, rep.pixelsWide > 0 { img.size = NSSize(width: rep.pixelsWide, height: rep.pixelsHigh) }
+        iv.image = img
+        if iv.frame.size != img.size { iv.setFrameSize(img.size); v.imgSize = img.size }
+    }
 }
 
 // MARK: video: native player with J K L, frame step
