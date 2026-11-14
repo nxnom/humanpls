@@ -1,0 +1,134 @@
+import Foundation
+
+/// What an option is. The viewer picks the right native view from this.
+public enum ItemKind: String, Codable, Sendable {
+    case chip      // short text (a name, a title): shown as big text
+    case text      // long plain text
+    case markdown
+    case code
+    case image
+    case video
+    case audio
+    case html
+    case pdf
+    case url
+}
+
+public struct Item: Codable, Identifiable, Hashable, Sendable {
+    public var key: String               // A, B, C ...
+    public var kind: ItemKind
+    public var label: String?
+    public var note: String?
+    public var path: String?             // absolute file path
+    public var text: String?             // inline content (chip, text, markdown, code, html)
+    public var language: String?         // for code
+    public var url: String?
+    public var recommended: Bool
+    public var selected: Bool
+
+    public var id: String { key }
+
+    public init(key: String, kind: ItemKind, label: String? = nil, note: String? = nil, path: String? = nil,
+                text: String? = nil, language: String? = nil, url: String? = nil,
+                recommended: Bool = false, selected: Bool = false) {
+        self.key = key; self.kind = kind; self.label = label; self.note = note; self.path = path
+        self.text = text; self.language = language; self.url = url
+        self.recommended = recommended; self.selected = selected
+    }
+
+    public var fileName: String? { path.map { ($0 as NSString).lastPathComponent } }
+
+    /// The name used in the answer: the label, else the short text, else nothing.
+    public var answerName: String? {
+        if let l = label, !l.isEmpty { return l }
+        if kind == .chip, let t = text, !t.isEmpty { return t }
+        return nil
+    }
+}
+
+public struct Question: Codable, Identifiable, Hashable, Sendable {
+    public var id: String
+    public var title: String?
+    public var question: String?
+    public var multi: Bool
+    public var items: [Item]
+
+    public init(id: String, title: String? = nil, question: String? = nil, multi: Bool = false, items: [Item]) {
+        self.id = id; self.title = title; self.question = question; self.multi = multi; self.items = items
+    }
+    public var heading: String { title ?? id }
+}
+
+public enum JobMode: String, Codable, Sendable { case pick, show }
+
+public struct Job: Codable, Identifiable, Sendable {
+    public var id: String
+    public var mode: JobMode
+    public var title: String?
+    public var question: String?
+    public var sections: [Question]
+    public var createdAt: Date
+
+    public init(id: String, mode: JobMode, title: String? = nil, question: String? = nil, sections: [Question], createdAt: Date = Date()) {
+        self.id = id; self.mode = mode; self.title = title; self.question = question
+        self.sections = sections; self.createdAt = createdAt
+    }
+    public var heading: String { title ?? id }
+}
+
+/// Facts about the caller's terminal, so the app can send the answer back to the right chat.
+public struct ClientEnv: Codable, Sendable {
+    public var tmuxPane: String?
+    public var tmuxSocket: String?
+    public var tmuxPath: String?
+    public var bundleId: String?
+    public var cwd: String?
+
+    public init(tmuxPane: String? = nil, tmuxSocket: String? = nil, tmuxPath: String? = nil, bundleId: String? = nil, cwd: String? = nil) {
+        self.tmuxPane = tmuxPane; self.tmuxSocket = tmuxSocket; self.tmuxPath = tmuxPath
+        self.bundleId = bundleId; self.cwd = cwd
+    }
+}
+
+public struct JobSummary: Codable, Sendable {
+    public var id: String
+    public var title: String
+    public var mode: JobMode
+    public var count: Int
+    public var date: Date
+}
+
+// MARK: protocol (one JSON object per line over a unix socket)
+
+public struct Request: Codable, Sendable {
+    public var cmd: String               // ping, pick, show, reopen, list, quit
+    public var job: Job?
+    public var env: ClientEnv?
+    public var wait: Bool
+    public var ref: String?              // reopen: a history id (nil = the last one)
+
+    public init(cmd: String, job: Job? = nil, env: ClientEnv? = nil, wait: Bool = false, ref: String? = nil) {
+        self.cmd = cmd; self.job = job; self.env = env; self.wait = wait; self.ref = ref
+    }
+}
+
+public struct Response: Codable, Sendable {
+    public var type: String              // pong, accepted, answer, jobs, error
+    public var message: String?
+    public var answer: String?
+    public var status: String?           // sent, copied, cancelled
+    public var jobs: [JobSummary]?
+
+    public init(type: String, message: String? = nil, answer: String? = nil, status: String? = nil, jobs: [JobSummary]? = nil) {
+        self.type = type; self.message = message; self.answer = answer; self.status = status; self.jobs = jobs
+    }
+}
+
+public enum Coding {
+    public static func encoder() -> JSONEncoder {
+        let e = JSONEncoder(); e.dateEncodingStrategy = .iso8601; e.outputFormatting = [.sortedKeys]; return e
+    }
+    public static func decoder() -> JSONDecoder {
+        let d = JSONDecoder(); d.dateDecodingStrategy = .iso8601; return d
+    }
+}
