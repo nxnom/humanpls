@@ -1,16 +1,56 @@
-# humanpls
+<p align="center">
+  <img src="design/logo/humanpls-app-icon.png" alt="humanpls logo" width="150">
+</p>
 
-*Human, please.* A native macOS app that lets an AI agent ask you to pick between options, or just show you files.
+<h1 align="center">humanpls</h1>
 
-The agent runs one command. A popup opens, you choose, and the answer goes back into the chat (or to the command that waited for it). No browser, no lost focus, no paths to open by hand.
+<p align="center">
+  <em>Human, please.</em><br>
+  A native macOS popup that lets your AI agent ask you to pick between options, or just show you files.
+</p>
+
+<p align="center">
+  macOS 14+ &nbsp;·&nbsp; Swift, no dependencies &nbsp;·&nbsp; one app, one command &nbsp;·&nbsp; MIT
+</p>
+
+<p align="center">
+  <img src="docs/images/pick-sheet.png" alt="humanpls: twelve logos cut from one image sheet, two picked" width="900">
+</p>
+
+## Why
+
+Agents are good at making things and bad at asking which one you want.
+
+- They give you **paths**, and you open every file yourself.
+- They give you **one image with twelve logos**, and you cannot pick one of them.
+- They ask in the chat, and you type "the third one, but bluer".
+
+humanpls fixes this. The agent runs one command, a popup opens with the options, you click, and your answer goes straight back into the chat. No browser, no lost focus, no copying paths.
 
 ```
 humanpls pick --id narrator --question "Which take fits?" a.wav::calm "*b.wav::older, raspy" c.wav
 humanpls pick --id ep02 --section Name text:Aung text:Maung --section Plates --multi a.png b.png c.png
 humanpls pick --id logo --slice auto logo-sheet.png     # one image with many logos: pick a cell
-humanpls show gen/ clip.mp4 notes.md
-humanpls reopen          # open the last popup again
+humanpls show gen/ clip.mp4 notes.md                    # just look at things
+humanpls reopen                                         # open the last popup again
 ```
+
+## What it looks like
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="docs/images/compare.png" alt="Two images side by side with synced zoom"><br>
+      <b>Compare.</b> Two images side by side with the same zoom and position, or flip between them with <code>F</code>.
+    </td>
+    <td width="50%" valign="top">
+      <img src="docs/images/rich-cards.png" alt="Markdown and code cards"><br>
+      <b>Any content.</b> Markdown and code with colors, audio, video, images, PDF, text. Any other file gets a Quick Look card.
+    </td>
+  </tr>
+</table>
+
+The top screenshot is the **image sheet** feature: the agent made one picture with twelve logos, humanpls found the grid, cut it into twelve cards, and you pick like in any other question. The picked cells come back as separate files.
 
 ## What it does
 
