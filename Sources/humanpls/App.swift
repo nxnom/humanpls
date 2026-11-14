@@ -255,7 +255,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let win = NSMenu(title: "Window"); winItem.submenu = win
         win.addItem(withTitle: "Minimize", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
         win.addItem(withTitle: "Close", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
-        NSApp.windowsMenu = win
+        NSApplication.shared.windowsMenu = win
         return main
     }
 
