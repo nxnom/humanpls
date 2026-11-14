@@ -14,7 +14,7 @@ enum CellExporter {
     static func png(path: String, crop: CropRect) -> Data? {
         guard let src = CGImageSourceCreateWithURL(URL(fileURLWithPath: path) as CFURL, nil),
               let full = CGImageSourceCreateImageAtIndex(src, 0, nil),
-              let part = full.cropping(to: crop.pixels(width: full.width, height: full.height)) else { return nil }
+              let part = GridSlicer.cell(from: full, crop: crop) else { return nil }
         return NSBitmapImageRep(cgImage: part).representation(using: .png, properties: [:])
     }
 

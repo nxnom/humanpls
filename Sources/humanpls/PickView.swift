@@ -13,6 +13,8 @@ final class PickModel: ObservableObject {
     @Published var picks: Picks { didSet { override = nil } }
     @Published var override: String? = nil
     @Published var showPreview = false
+    @Published var layouts: [String: QuestionLayout] = [:]     // what the person chose, per question
+    @Published var focus: [String: String] = [:]               // the option shown large in the Detail layout, per question
     let store = AnnotationStore()
     var hovered: (question: String, key: String)?     // the option under the mouse, for Quick Look
     var onFinish: (FinishAction, String, Picks) -> Void = { _, _, _ in }
@@ -24,6 +26,24 @@ final class PickModel: ObservableObject {
 
     var computed: String { AnswerText.make(job: job, picks: picks) }
     var text: String { override ?? computed }
+
+    // MARK: layouts
+
+    func layout(_ q: Question) -> QuestionLayout { layouts[q.id] ?? q.effectiveLayout }
+    func setLayout(_ q: Question, _ l: QuestionLayout) {
+        layouts[q.id] = l
+        if focus[q.id] == nil { focus[q.id] = chosen(q).sorted().first ?? q.items.first?.key }
+    }
+    func focusedItem(_ q: Question) -> Item? { q.items.first { $0.key == focus[q.id] } ?? q.items.first }
+    func moveFocus(_ q: Question, _ d: Int) {
+        guard !q.items.isEmpty else { return }
+        let i = q.items.firstIndex { $0.key == focusedItem(q)?.key } ?? 0
+        focus[q.id] = q.items[min(q.items.count - 1, max(0, i + d))].key
+    }
+    /// Everything picked so far, for the sidebar.
+    var pickedItems: [(question: Question, item: Item)] {
+        job.sections.flatMap { q in q.items.filter { chosen(q).contains($0.key) }.map { (q, $0) } }
+    }
 
     func chosen(_ s: Question) -> Set<String> { picks.chosen[s.id] ?? [] }
     func isRetry(_ s: Question) -> Bool { picks.retry.contains(s.id) }
@@ -66,7 +86,7 @@ final class PickModel: ObservableObject {
     func quickLook(_ q: Question) {
         let files = q.items.filter { $0.path != nil }
         guard !files.isEmpty else { NSSound.beep(); return }
-        let start = (hovered?.question == q.id ? hovered?.key : nil) ?? chosen(q).sorted().first
+        let start = (layout(q) == .detail ? focus[q.id] : nil) ?? (hovered?.question == q.id ? hovered?.key : nil) ?? chosen(q).sorted().first
         QuickLook.shared.show(files.map { $0.path! }, index: files.firstIndex { $0.key == start } ?? 0)
     }
 
@@ -169,10 +189,7 @@ struct OptionCard: View {
 
     var on: Bool { model.chosen(section).contains(item.key) }
     func pick() { model.toggle(section, item.key) }
-    var title: String {
-        if let r = item.cellRow, let c = item.cellCol { return item.answerName ?? "R\(r) · C\(c)" }
-        return item.answerName ?? item.fileName ?? "Option \(item.key)"
-    }
+    var title: String { displayTitle(item) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -345,35 +362,64 @@ struct SectionView: View {
     let section: Question
     @ObservedObject var model: PickModel
 
-    var columns: [GridItem] {
-        if section.slice != nil { return [GridItem(.adaptive(minimum: 150), spacing: 10)] }
+    var only: Bool { model.job.sections.count == 1 }
+    /// The title of the question. With a single question, the title of the whole popup question is used.
+    var titleText: String { section.question ?? (only ? model.job.question : nil) ?? section.heading }
+    var subtitle: String {
+        let how = section.multi ? "Pick any" : "Pick one"
+        return only ? how : "\(section.heading) · \(how.lowercased())"
+    }
+
+    var gridColumns: [GridItem] {
         let kinds = Set(section.items.map { $0.kind })
         if kinds.isSubset(of: [.chip]) { return [GridItem(.adaptive(minimum: 200), spacing: 12)] }
-        if kinds.isSubset(of: [.image, .video]) { return [GridItem(.adaptive(minimum: 250), spacing: 14)] }
+        if kinds.isSubset(of: [.image, .video]) { return [GridItem(.adaptive(minimum: 260), spacing: 14)] }
         return [GridItem(.flexible())]
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(section.question ?? section.heading).font(.title2.weight(.semibold))
-                    Text("\(section.heading) · \(section.multi ? "pick several" : "pick one")").font(.caption).foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .center, spacing: 12) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(titleText).font(.title2.weight(.semibold)).fixedSize(horizontal: false, vertical: true)
+                    Text(subtitle).font(.callout).foregroundStyle(.secondary)
                 }
-                Spacer()
+                Spacer(minLength: 12)
                 if section.slice != nil { sliceControls }
+                layoutPicker
                 if section.multi {
                     let all = model.chosen(section).count == section.items.count
                     Text("\(model.chosen(section).count) of \(section.items.count)").font(.caption).foregroundStyle(.secondary)
                     Button(all ? "Clear" : "Select all") { model.selectAll(section, !all) }.controlSize(.small)
                 }
             }
-            LazyVGrid(columns: columns, spacing: 12) {
-                ForEach(section.items) { OptionCard(item: $0, section: section, model: model) }
+            switch model.layout(section) {
+            case .grid:
+                LazyVGrid(columns: gridColumns, spacing: 12) {
+                    ForEach(section.items) { OptionCard(item: $0, section: section, model: model) }
+                }
+            case .dense:
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 140, maximum: 230), spacing: 6)], spacing: 6) {
+                    ForEach(section.items) { it in
+                        if isVisual(it) { DenseTile(item: it, section: section, model: model) }
+                        else { OptionCard(item: it, section: section, model: model) }
+                    }
+                }
+            case .detail:
+                DetailLayout(section: section, model: model)
             }
             retryCard
-            TextField("Note on \(section.heading.lowercased()) (optional)", text: model.sectionNote(section)).textFieldStyle(.roundedBorder)
+            TextField("Note on \(only ? "your choice" : section.heading.lowercased()) (optional)", text: model.sectionNote(section)).textFieldStyle(.roundedBorder)
         }
+    }
+
+    /// Grid, Detail or Dense.
+    var layoutPicker: some View {
+        Picker("", selection: Binding(get: { model.layout(section) }, set: { model.setLayout(section, $0) })) {
+            Image(systemName: "square.grid.2x2").tag(QuestionLayout.grid).help("Grid: a card for each option")
+            Image(systemName: "sidebar.left").tag(QuestionLayout.detail).help("Detail: a list and a large preview")
+            Image(systemName: "square.grid.3x3").tag(QuestionLayout.dense).help("Dense: only big thumbnails")
+        }.pickerStyle(.segmented).labelsHidden().frame(width: 120)
     }
 
     /// Fix the grid by hand when the automatic one is wrong.
@@ -410,24 +456,6 @@ final class Nav: ObservableObject {
     init(first: String) { q = first }
 }
 
-struct Sidebar: View {
-    @ObservedObject var nav: Nav
-    @ObservedObject var model: PickModel
-    let jump: (String) -> Void
-    var body: some View {
-        List(model.job.sections, selection: Binding(get: { nav.q }, set: { if let n = $0 { jump(n) } })) { s in
-            HStack {
-                Text(s.heading).lineLimit(1)
-                Spacer()
-                if model.answered(s) {
-                    let c = model.chosen(s).count
-                    Text(model.isRetry(s) ? "↻" : (s.multi ? "\(c)" : "✓")).font(.caption.weight(.semibold)).foregroundStyle(.green)
-                }
-            }.tag(s.id)
-        }.listStyle(.sidebar).frame(minWidth: 160, idealWidth: 190, maxWidth: 230)
-    }
-}
-
 struct PickRoot: View {
     @ObservedObject var model: PickModel
     @State var nav: Nav
@@ -444,16 +472,12 @@ struct PickRoot: View {
     var body: some View {
         ScrollViewReader { proxy in
             VStack(spacing: 0) {
-                if secs.count > 1 {
-                    HSplitView {
-                        Sidebar(nav: nav, model: model) { n in
-                            nav.q = n; nav.jumping = true
-                            withAnimation(.easeInOut(duration: 0.3)) { proxy.scrollTo(n, anchor: .top) }
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { nav.jumping = false }
-                        }
-                        page(proxy)
+                HSplitView {
+                    Sidebar(nav: nav, model: model) { n in
+                        nav.q = n; nav.jumping = true
+                        withAnimation(.easeInOut(duration: 0.3)) { proxy.scrollTo(n, anchor: .top) }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { nav.jumping = false }
                     }
-                } else {
                     page(proxy)
                 }
                 Divider()
@@ -469,7 +493,6 @@ struct PickRoot: View {
         GeometryReader { outer in
             ScrollView {
                 VStack(alignment: .leading, spacing: 34) {
-                    if let q = model.job.question { Text(q).font(.title3).foregroundStyle(.secondary) }
                     ForEach(secs) { s in
                         SectionView(section: s, model: model).id(s.id)
                             .background(GeometryReader { g in Color.clear.preference(key: SecKey.self, value: [s.id: g.frame(in: .named("scroll")).minY]) })
@@ -501,10 +524,16 @@ struct PickRoot: View {
         if c == "]" { go(1, proxy); return .handled }
         if c == "[" { go(-1, proxy); return .handled }
         guard let s = currentSection else { return .ignored }
+        if model.layout(s) == .detail {
+            if k.key == .upArrow { model.moveFocus(s, -1); return .handled }
+            if k.key == .downArrow { model.moveFocus(s, 1); return .handled }
+            if k.key == .return, let it = model.focusedItem(s) { model.toggle(s, it.key); return .handled }
+        }
         if c == "0" { model.toggleRetry(s); return .handled }
         if c == " " { model.quickLook(s); return .handled }
         if c.count == 1, let ch = c.uppercased().first, ch.isLetter,
            let it = s.items.first(where: { $0.key == String(ch) }) {
+            model.focus[s.id] = it.key
             model.toggle(s, it.key); return .handled
         }
         return .ignored

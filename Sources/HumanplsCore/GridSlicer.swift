@@ -118,13 +118,49 @@ public enum GridSlicer {
         return (best.r / best.n, best.g / best.n, best.b / best.n)
     }
 
+    /// One cell of a sheet, cut out of the full image. With `trim`, the empty background around the content is removed
+    /// (a small margin stays), so a logo is not a small mark in a big white cell.
+    public static func cell(from full: CGImage, crop: CropRect, trim: Bool = true) -> CGImage? {
+        guard let part = full.cropping(to: crop.pixels(width: full.width, height: full.height)) else { return nil }
+        guard trim, let r = contentRect(of: part), let tight = part.cropping(to: r) else { return part }
+        return tight
+    }
+
+    /// The part of the image that is not plain background, plus a margin. nil when there is nothing but background.
+    public static func contentRect(of cg: CGImage, margin: Double = 0.1) -> CGRect? {
+        guard let (px, w, h) = pixels(of: cg, maxSide: 400) else { return nil }
+        let bg = background(px, w, h)
+        var minX = w, minY = h, maxX = -1, maxY = -1
+        for y in 0..<h {
+            for x in 0..<w {
+                let i = (y * w + x) * 4
+                if max(abs(Int(px[i]) - bg.0), abs(Int(px[i + 1]) - bg.1), abs(Int(px[i + 2]) - bg.2)) > 28 {
+                    if x < minX { minX = x }; if x > maxX { maxX = x }; if y < minY { minY = y }; if y > maxY { maxY = y }
+                }
+            }
+        }
+        guard maxX >= minX, maxY >= minY else { return nil }
+        let sx = Double(cg.width) / Double(w), sy = Double(cg.height) / Double(h)
+        let bw = Double(maxX - minX + 1) * sx, bh = Double(maxY - minY + 1) * sy
+        let pad = margin * max(bw, bh)
+        let x0 = max(0, Double(minX) * sx - pad), y0 = max(0, Double(minY) * sy - pad)
+        let x1 = min(Double(cg.width), Double(maxX + 1) * sx + pad), y1 = min(Double(cg.height), Double(maxY + 1) * sy + pad)
+        return CGRect(x: x0.rounded(.down), y: y0.rounded(.down), width: max(1, (x1 - x0).rounded(.up)), height: max(1, (y1 - y0).rounded(.up)))
+    }
+
     /// RGBA pixels of the image, scaled so the longer side is at most `maxSide`.
     static func load(path: String, maxSide: Int) -> ([UInt8], Int, Int)? {
         guard let src = CGImageSourceCreateWithURL(URL(fileURLWithPath: path) as CFURL, nil) else { return nil }
         let opts: [CFString: Any] = [kCGImageSourceCreateThumbnailFromImageAlways: true, kCGImageSourceCreateThumbnailWithTransform: true,
                                      kCGImageSourceThumbnailMaxPixelSize: maxSide]
         guard let cg = CGImageSourceCreateThumbnailAtIndex(src, 0, opts as CFDictionary) else { return nil }
-        let w = cg.width, h = cg.height
+        return pixels(of: cg, maxSide: maxSide)
+    }
+
+    /// RGBA pixels of an image, scaled down so the longer side is at most `maxSide`.
+    static func pixels(of source: CGImage, maxSide: Int) -> ([UInt8], Int, Int)? {
+        let k = min(1.0, Double(maxSide) / Double(max(source.width, source.height)))
+        let w = max(1, Int(Double(source.width) * k)), h = max(1, Int(Double(source.height) * k))
         guard w > 8, h > 8, let cs = CGColorSpace(name: CGColorSpace.sRGB) else { return nil }
         var buf = [UInt8](repeating: 255, count: w * h * 4)
         let ok = buf.withUnsafeMutableBytes { raw -> Bool in
@@ -132,7 +168,7 @@ public enum GridSlicer {
                                       bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return false }
             ctx.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 1))   // transparent areas count as white
             ctx.fill(CGRect(x: 0, y: 0, width: w, height: h))
-            ctx.draw(cg, in: CGRect(x: 0, y: 0, width: w, height: h))
+            ctx.draw(source, in: CGRect(x: 0, y: 0, width: w, height: h))
             return true
         }
         return ok ? (buf, w, h) : nil

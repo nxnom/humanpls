@@ -313,6 +313,39 @@ final class CoreTests: XCTestCase {
         XCTAssertNil(GridSlicer.detect(path: tmp + "/missing.png"))
     }
 
+    /// A white image with one colored square on it.
+    func squareOnWhite(w: Int, h: Int, x: Int, y: Int, side: Int) -> CGImage {
+        let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+        ctx.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 1)); ctx.fill(CGRect(x: 0, y: 0, width: w, height: h))
+        ctx.setFillColor(CGColor(red: 0.9, green: 0.2, blue: 0.1, alpha: 1)); ctx.fill(CGRect(x: x, y: h - y - side, width: side, height: side))   // y from the top
+        return ctx.makeImage()!
+    }
+
+    func testTrimFindsTheContent() throws {
+        let img = squareOnWhite(w: 400, h: 600, x: 150, y: 300, side: 100)
+        let r = try XCTUnwrap(GridSlicer.contentRect(of: img, margin: 0.1))
+        // the square plus a 10 percent margin (10 px), within a few pixels of rounding
+        XCTAssertEqual(r.minX, 140, accuracy: 6); XCTAssertEqual(r.minY, 290, accuracy: 6)
+        XCTAssertEqual(r.width, 120, accuracy: 10); XCTAssertEqual(r.height, 120, accuracy: 10)
+        XCTAssertNil(GridSlicer.contentRect(of: squareOnWhite(w: 100, h: 100, x: 0, y: 0, side: 0)), "only background: nothing to keep")
+        let edge = try XCTUnwrap(GridSlicer.contentRect(of: squareOnWhite(w: 200, h: 200, x: 0, y: 0, side: 60)))
+        XCTAssertGreaterThanOrEqual(edge.minX, 0); XCTAssertGreaterThanOrEqual(edge.minY, 0)
+    }
+
+    func testCellFromSheetIsTrimmedUnlessAskedNot() throws {
+        let sheet = squareOnWhite(w: 800, h: 600, x: 500, y: 100, side: 80)       // content in the top right quarter
+        let crop = CropRect(x: 0.5, y: 0, w: 0.5, h: 0.5)                          // 400 x 300 px
+        let raw = try XCTUnwrap(GridSlicer.cell(from: sheet, crop: crop, trim: false))
+        XCTAssertEqual([raw.width, raw.height], [400, 300])
+        let tight = try XCTUnwrap(GridSlicer.cell(from: sheet, crop: crop))
+        XCTAssertLessThan(tight.width, 130); XCTAssertLessThan(tight.height, 130)
+        XCTAssertGreaterThan(tight.width, 80)
+        // a cell with no background at all (solid color) is kept whole
+        let solid = squareOnWhite(w: 100, h: 100, x: 0, y: 0, side: 100)
+        XCTAssertEqual(GridSlicer.cell(from: solid, crop: CropRect(x: 0, y: 0, w: 1, h: 1))?.width, 100)
+    }
+
     func testSliceBuildsCellOptions() throws {
         let path = try makeSheet(cols: 4, rows: 3)
         var a = JobBuilder.PickArgs(); a.id = "logo"; a.slice = "auto"; a.positional = [path]; a.recommend = ["G"]

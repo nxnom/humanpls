@@ -101,7 +101,7 @@ final class Controller {
         case .pick:
             let model = PickModel(job: job, picks: picks, waiting: wait)
             popup = PopupWindow(job: job, title: "humanpls · \(job.heading)", autosave: "humanpls.pick",
-                                size: job.sections.count > 1 ? NSSize(width: 1020, height: 740) : NSSize(width: 760, height: 700),
+                                size: job.sections.count > 1 ? NSSize(width: 1120, height: 780) : NSSize(width: 1020, height: 740),
                                 content: PickRoot(model: model).onExitCommand { model.finish(.cancel) }, onDone: finishNow)
             model.onFinish = { [weak popup] a, t, p in popup?.finish(a, t, p) }
             popup.autoFinish = { model.finish($0) }

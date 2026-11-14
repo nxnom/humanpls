@@ -104,7 +104,8 @@ struct Thumb: View {
             .clipped()
             .task(id: item.key) {
                 guard let p = item.path else { return }
-                if item.kind == .image { img = await Cache.thumb(p, maxPixel: 300) }
+                if let c = item.crop { img = await Cache.cell(p, c, maxPixel: 300) }
+                else if item.kind == .image { img = await Cache.thumb(p, maxPixel: 300) }
                 else if item.kind == .video { img = await Cache.poster(p) }
             }
     }
@@ -262,7 +263,7 @@ struct ShowRoot: View {
                         Text("F flips A and B  ·  ⌘-click another image to change the pair, or click one image to go back")
                             .font(.caption).foregroundStyle(.secondary).padding(6).frame(maxWidth: .infinity).background(.bar)
                     } else if let it = model.current {
-                        viewer(it).id(it.key)
+                        ItemViewer(item: it, store: model.store, onMark: { t in model.addMark(it, time: t) }).id(it.key)
                         if it.kind == .video || it.kind == .audio { MarksPanel(model: model, item: it) }
                         Text(hint(it)).font(.caption).foregroundStyle(.secondary).padding(6).frame(maxWidth: .infinity).background(.bar)
                     }
@@ -297,27 +298,6 @@ struct ShowRoot: View {
             if k.characters.lowercased() == "f", model.comparePair != nil { model.showB.toggle(); return .handled }
             if k.characters == " ", let it = model.current, it.kind != .video, it.kind != .audio { model.quickLook(); return .handled }
             return .ignored
-        }
-    }
-
-    @ViewBuilder func viewer(_ it: Item) -> some View {
-        if !fileExists(it.path) { MissingFile(path: it.path ?? "").padding(30).frame(maxWidth: .infinity, maxHeight: .infinity) } else { kindViewer(it) }
-    }
-
-    @ViewBuilder func kindViewer(_ it: Item) -> some View {
-        switch it.kind {
-        case .file: FileInfoView(path: it.path ?? "", big: true)
-        case .image:
-            VStack(spacing: 0) {
-                AnnotateBar(store: model.store, path: it.path ?? "")
-                AnnotatableImage(path: it.path ?? "", store: model.store)
-            }
-        case .video: VideoViewer(path: it.path ?? "", onMark: { t in model.addMark(it, time: t) })
-        case .audio: AudioViewer(path: it.path ?? "")
-        case .pdf: PDFRep(path: it.path ?? "")
-        case .html: WebRep(path: it.path)
-        case .markdown, .code, .text: RichText(item: it)
-        default: Text("No preview").foregroundStyle(.secondary).frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 

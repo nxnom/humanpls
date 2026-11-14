@@ -52,7 +52,7 @@ enum Cache {
     static func cell(_ path: String, _ crop: CropRect, maxPixel: Int = 520) async -> NSImage? {
         let key = "\(path)|\(crop.x)|\(crop.y)|\(crop.w)|\(crop.h)|\(maxPixel)"
         if let c = cells[key] { return c }
-        guard let full = await sheet(path), let part = full.cropping(to: crop.pixels(width: full.width, height: full.height)) else { return nil }
+        guard let full = await sheet(path), let part = GridSlicer.cell(from: full, crop: crop) else { return nil }
         var out = part
         let longest = max(part.width, part.height)
         if longest > maxPixel, let cs = part.colorSpace ?? CGColorSpace(name: CGColorSpace.sRGB) {
@@ -312,7 +312,7 @@ struct ZoomImage: NSViewRepresentable {
     static func load(_ path: String, _ crop: CropRect?) -> NSImage? {
         if let crop, let src = CGImageSourceCreateWithURL(URL(fileURLWithPath: path) as CFURL, nil),
            let full = CGImageSourceCreateImageAtIndex(src, 0, nil),
-           let part = full.cropping(to: crop.pixels(width: full.width, height: full.height)) {
+           let part = GridSlicer.cell(from: full, crop: crop) {
             return NSImage(cgImage: part, size: NSSize(width: part.width, height: part.height))
         }
         guard let img = NSImage(contentsOfFile: path) else { return nil }
