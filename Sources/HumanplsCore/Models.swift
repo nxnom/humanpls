@@ -84,10 +84,12 @@ public struct ClientEnv: Codable, Sendable {
     public var tmuxPath: String?
     public var bundleId: String?
     public var cwd: String?
+    public var autoAnswer: String?       // tests only: send, copy or cancel = answer at once, no window
 
-    public init(tmuxPane: String? = nil, tmuxSocket: String? = nil, tmuxPath: String? = nil, bundleId: String? = nil, cwd: String? = nil) {
+    public init(tmuxPane: String? = nil, tmuxSocket: String? = nil, tmuxPath: String? = nil, bundleId: String? = nil,
+                cwd: String? = nil, autoAnswer: String? = nil) {
         self.tmuxPane = tmuxPane; self.tmuxSocket = tmuxSocket; self.tmuxPath = tmuxPath
-        self.bundleId = bundleId; self.cwd = cwd
+        self.bundleId = bundleId; self.cwd = cwd; self.autoAnswer = autoAnswer
     }
 }
 

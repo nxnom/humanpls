@@ -15,6 +15,8 @@ final class PopupWindow: NSObject, NSWindowDelegate {
     let job: Job
     var finished = false
     var onDone: (FinishAction, String, Picks?) -> Void
+    var autoText: (() -> String)?
+    var autoPicks: (() -> Picks?)?
 
     init<V: View>(job: Job, title: String, autosave: String, size: NSSize, content: V,
                   onDone: @escaping (FinishAction, String, Picks?) -> Void) {
@@ -77,6 +79,15 @@ final class PopupWindow: NSObject, NSWindowDelegate {
 final class Controller {
     let history = HistoryStore()
     var open: [String: PopupWindow] = [:]
+    /// Test mode (set by the CLI per request): answer at once with the default picks and open no window.
+    static func autoAction(_ env: ClientEnv) -> FinishAction? {
+        switch env.autoAnswer {
+        case "send": return .send
+        case "copy": return .copy
+        case "cancel": return .cancel
+        default: return nil
+        }
+    }
 
     func open(job: Job, picks: Picks? = nil, env: ClientEnv, wait: Bool, reply: @escaping (Response) -> Void) {
         open[job.id]?.finish(.cancel, "", nil)           // same id again: replace the old popup
@@ -94,15 +105,21 @@ final class Controller {
                                 size: job.sections.count > 1 ? NSSize(width: 1020, height: 740) : NSSize(width: 760, height: 700),
                                 content: PickRoot(model: model).onExitCommand { model.finish(.cancel) }, onDone: finishNow)
             model.onFinish = { [weak popup] a, t, p in popup?.finish(a, t, p) }
+            popup.autoText = { model.text }; popup.autoPicks = { model.picks }
         case .show:
             let model = ShowModel(job: job, waiting: wait)
             popup = PopupWindow(job: job, title: "humanpls · \(job.heading)", autosave: "humanpls.show",
                                 size: NSSize(width: 1100, height: 760),
                                 content: ShowRoot(model: model).onExitCommand { model.finish(.cancel) }, onDone: finishNow)
             model.onFinish = { [weak popup] a, t in popup?.finish(a, t, nil) }
+            popup.autoText = { model.text }
         }
         open[job.id] = popup
-        popup.show()
+        if let auto = Controller.autoAction(env) {
+            DispatchQueue.main.async { popup.finish(auto, popup.autoText?() ?? "", popup.autoPicks?()) }
+        } else {
+            popup.show()
+        }
     }
 
     func finished(job: Job, action: FinishAction, text: String, picks: Picks?, env: ClientEnv, wait: Bool, reply: @escaping (Response) -> Void) {
@@ -123,7 +140,7 @@ final class Controller {
             if wait { reply(Response(type: "answer", answer: text, status: "copied")) }
         case .send:
             if wait { reply(Response(type: "answer", answer: text, status: "sent")) }
-            else if !text.isEmpty { Sender.deliver(text, env: env) { _ in } }
+            else if !text.isEmpty, Controller.autoAction(env) == nil { Sender.deliver(text, env: env) { _ in } }
         }
     }
 

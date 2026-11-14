@@ -2,8 +2,10 @@ import Foundation
 
 /// Tiny unix socket helpers. The protocol is one JSON object per line.
 public enum Paths {
+    /// HUMANPLS_HOME moves all app data (socket, history, annotations). Used by tests.
     public static var support: String {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("humanpls")
+        let base = ProcessInfo.processInfo.environment["HUMANPLS_HOME"].map { URL(fileURLWithPath: $0) }
+            ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("humanpls")
         try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
         return base.path
     }

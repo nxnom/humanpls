@@ -62,6 +62,7 @@ func callerEnv() -> ClientEnv {
         env.tmuxPath = findInPath("tmux")
     }
     env.bundleId = e["__CFBundleIdentifier"]
+    env.autoAnswer = e["HUMANPLS_AUTOANSWER"]
     return env
 }
 
