@@ -67,6 +67,7 @@ func callerEnv() -> ClientEnv {
     }
     env.bundleId = e["__CFBundleIdentifier"]
     env.autoAnswer = e["HUMANPLS_AUTOANSWER"]
+    env.autoDelay = e["HUMANPLS_AUTOANSWER_DELAY"].flatMap(Double.init)
     return env
 }
 
@@ -214,7 +215,7 @@ func submit(_ job: Job, wait: Bool, timeout: Double?, dump: Bool) {
     }
     if let t = timeout {
         DispatchQueue.global().asyncAfter(deadline: .now() + t) {
-            FileHandle.standardError.write(Data("humanpls: timed out waiting for the answer\n".utf8)); exit(4)
+            FileHandle.standardError.write(Data("humanpls: timed out waiting for the answer. The popup stays open; if the person answers later, the answer is pasted into the chat.\n".utf8)); exit(4)
         }
     }
     while let r = readResponse(reader) {

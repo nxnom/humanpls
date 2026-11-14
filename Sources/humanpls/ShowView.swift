@@ -6,7 +6,7 @@ import HumanplsCore
 @MainActor
 final class ShowModel: ObservableObject {
     let job: Job
-    let waiting: Bool
+    @Published var waiting: Bool
     var items: [Item] { job.sections.first?.items ?? [] }
     @Published var selected: Set<String> = []
     @Published var compareMode = 0          // 0 side by side, 1 flip

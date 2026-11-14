@@ -16,7 +16,7 @@ struct PickedEntry: Identifiable {
 @MainActor
 final class PickModel: ObservableObject {
     @Published var job: Job
-    let waiting: Bool
+    @Published var waiting: Bool          // false when the command that was waiting for the answer is gone
     @Published var picks: Picks { didSet { override = nil } }
     @Published var override: String? = nil
     @Published var showPreview = false

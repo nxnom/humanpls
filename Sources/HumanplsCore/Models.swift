@@ -90,12 +90,13 @@ public struct ClientEnv: Codable, Sendable {
     public var tmuxPath: String?
     public var bundleId: String?
     public var cwd: String?
-    public var autoAnswer: String?       // tests only: send, copy or cancel = answer at once, no window
+    public var autoAnswer: String?       // tests only: send, deliver, copy or cancel = answer by itself, no window
+    public var autoDelay: Double?        // tests only: seconds to wait before that answer
 
     public init(tmuxPane: String? = nil, tmuxSocket: String? = nil, tmuxPath: String? = nil, bundleId: String? = nil,
-                cwd: String? = nil, autoAnswer: String? = nil) {
+                cwd: String? = nil, autoAnswer: String? = nil, autoDelay: Double? = nil) {
         self.tmuxPane = tmuxPane; self.tmuxSocket = tmuxSocket; self.tmuxPath = tmuxPath
-        self.bundleId = bundleId; self.cwd = cwd; self.autoAnswer = autoAnswer
+        self.bundleId = bundleId; self.cwd = cwd; self.autoAnswer = autoAnswer; self.autoDelay = autoDelay
     }
 }
 

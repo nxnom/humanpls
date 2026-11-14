@@ -63,6 +63,25 @@ else
   echo "skip slice checks (python3 with Pillow is needed to make a test image)"
 fi
 
+if command -v tmux >/dev/null 2>&1; then
+  # The command that waits gives up (--timeout) before the person answers. The popup stays open and the late answer
+  # must still reach the chat: here a throwaway tmux pane stands in for the chat.
+  TS="$HOME_DIR/late.sock"
+  tmux -S "$TS" new-session -d -s hp -x 100 -y 20 'cat'
+  PANE=$(tmux -S "$TS" display-message -p -t hp '#{pane_id}')
+  TMUX="$TS,1,0" TMUX_PANE="$PANE" HUMANPLS_AUTOANSWER=deliver HUMANPLS_AUTOANSWER_DELAY=3 "$BIN" pick --id late --wait --timeout 1 "*text:Yes" "text:No" >/dev/null 2>&1; code=$?
+  check "wait timeout: the command exits with 4" "4" "$code"
+  sleep 4.5
+  shown=$(tmux -S "$TS" capture-pane -p -t "$PANE")
+  case "$shown" in
+    *'[late] picked: A "Yes"'*) pass=$((pass+1)); echo "ok   wait timeout: the late answer is pasted into the chat instead of being lost";;
+    *) fail=$((fail+1)); echo "FAIL wait timeout: the late answer did not arrive. Pane shows: $shown";;
+  esac
+  tmux -S "$TS" kill-server 2>/dev/null
+else
+  echo "skip wait-timeout fallback (tmux is not installed)"
+fi
+
 "$BIN" selftest >/dev/null 2>&1; code=$?
 check "annotation export self-test (draws shapes, reads the PNG pixels back)" "0" "$code"
 

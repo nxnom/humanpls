@@ -17,6 +17,7 @@ final class PopupWindow: NSObject, NSWindowDelegate {
     var finished = false
     var onDone: (FinishAction, String, Picks?) -> Void
     var autoFinish: ((FinishAction) -> Void)?       // test mode: finish like a person pressing the button
+    var stopWaiting: (() -> Void)?                  // the command that waited for the answer is gone
 
     init<V: View>(job: Job, title: String, autosave: String, size: NSSize, content: V,
                   onDone: @escaping (FinishAction, String, Picks?) -> Void) {
@@ -106,6 +107,7 @@ final class Controller {
                                 content: PickRoot(model: model).onExitCommand { model.finish(.cancel) }, onDone: finishNow)
             model.onFinish = { [weak popup] a, t, p in popup?.finish(a, t, p) }
             popup.autoFinish = { model.finish($0) }
+            popup.stopWaiting = { model.waiting = false }
         case .show:
             let model = ShowModel(job: job, waiting: wait)
             popup = PopupWindow(job: job, title: "humanpls · \(job.heading)", autosave: "humanpls.show",
@@ -113,16 +115,28 @@ final class Controller {
                                 content: ShowRoot(model: model).onExitCommand { model.finish(.cancel) }, onDone: finishNow)
             model.onFinish = { [weak popup] a, t in popup?.finish(a, t, nil) }
             popup.autoFinish = { model.finish($0) }
+            popup.stopWaiting = { model.waiting = false }
         }
         open[job.id] = popup
         if let auto = Controller.autoAction(env) {
-            DispatchQueue.main.async { popup.autoFinish?(auto) }
+            DispatchQueue.main.asyncAfter(deadline: .now() + (env.autoDelay ?? 0)) { popup.autoFinish?(auto) }
         } else {
             popup.show()
         }
     }
 
-    func finished(job: Job, action: FinishAction, text: String, picks: Picks?, env: ClientEnv, wait: Bool, reply: @escaping (Response) -> Void) {
+    /// The command that waited for this popup's answer ended (it timed out, or the agent's shell stopped it).
+    /// The popup then behaves like one opened without --wait: Send pastes the answer into the chat.
+    func clientGone(_ id: String) {
+        guard open[id]?.finished == false else { return }
+        gone.insert(id)
+        open[id]?.stopWaiting?()
+    }
+    var gone: Set<String> = []
+
+    func finished(job: Job, action: FinishAction, text: String, picks: Picks?, env: ClientEnv, wait waited: Bool, reply: @escaping (Response) -> Void) {
+        let wait = waited && !gone.contains(job.id)
+        gone.remove(job.id)
         if open[job.id]?.finished == true { open[job.id] = nil }
         Cache.stopAll()
         let status: String
@@ -203,7 +217,18 @@ final class Server {
             Task { @MainActor in
                 ctl.open(job: job, env: req.env ?? ClientEnv(), wait: wait) { resp in
                     _ = send(c, resp)
-                    if resp.type == "answer" || resp.type == "error" || (resp.type == "accepted" && !wait) { close(c) }
+                    // without --wait the connection ends right after "accepted"; with --wait the thread below owns it
+                    if !wait && resp.type == "accepted" || resp.type == "error" && !wait { close(c) }
+                }
+            }
+            if wait {
+                // The client sends nothing more and leaves after it got the answer. This read ends when it disconnects:
+                // after the answer (normal), or earlier (timeout, a killed shell, a closed terminal).
+                // Only this thread closes the connection, so the number cannot be reused while it reads.
+                DispatchQueue.global().async {
+                    _ = LineReader(fd: c).readLine()
+                    close(c)
+                    Task { @MainActor in ctl.clientGone(job.id) }
                 }
             }
         default:

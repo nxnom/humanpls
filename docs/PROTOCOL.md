@@ -23,6 +23,10 @@ An unknown extension is text if the start of the file is UTF-8 text, else a gene
 
 Exit codes: `0` answered or opened, `2` bad input, `3` popup closed without an answer (`--wait`), `4` timeout (`--wait`), `5` app problem.
 
+If the command that waits ends before the person answers (its `--timeout` runs out, the agent's shell kills it, the terminal closes),
+the popup **stays open** and switches to normal mode: **Send** now pastes the answer into the chat of the terminal that started it,
+as if `--wait` had not been used. The answer is not lost. Closing the popup without an answer is exit code 3.
+
 Without `--wait` the command prints `opened: ID (N items)` and returns. The answer is pasted into the terminal that ran the command.
 With `--wait` the command prints the answer text and returns; nothing is pasted.
 
