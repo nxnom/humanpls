@@ -51,6 +51,13 @@ public struct Item: Codable, Identifiable, Hashable, Sendable {
     }
 }
 
+/// How the options of one question are laid out. The person can switch in the popup.
+public enum QuestionLayout: String, Codable, Sendable, CaseIterable {
+    case grid      // a card per option, as many per row as fit
+    case detail    // a list on the left and a large preview of one option on the right
+    case dense     // only big thumbnails, for many images or logos
+}
+
 public struct Question: Codable, Identifiable, Hashable, Sendable {
     public var id: String
     public var title: String?
@@ -58,11 +65,15 @@ public struct Question: Codable, Identifiable, Hashable, Sendable {
     public var multi: Bool
     public var items: [Item]
     public var slice: SliceSpec?         // set when the options are the cells of one image sheet
+    public var layout: QuestionLayout?   // nil = automatic (dense for image sheets, else grid)
 
     public init(id: String, title: String? = nil, question: String? = nil, multi: Bool = false, items: [Item], slice: SliceSpec? = nil) {
         self.id = id; self.title = title; self.question = question; self.multi = multi; self.items = items; self.slice = slice
     }
     public var heading: String { title ?? id }
+
+    /// The layout to start with when the caller did not choose one.
+    public var effectiveLayout: QuestionLayout { layout ?? (slice != nil ? .dense : .grid) }
 }
 
 public enum JobMode: String, Codable, Sendable { case pick, show }
