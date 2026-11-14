@@ -26,15 +26,19 @@ public struct Item: Codable, Identifiable, Hashable, Sendable {
     public var url: String?
     public var recommended: Bool
     public var selected: Bool
+    public var crop: CropRect?           // a cell of an image sheet: only this part of the image
+    public var cellRow: Int?             // 1-based, for cells
+    public var cellCol: Int?
 
     public var id: String { key }
 
     public init(key: String, kind: ItemKind, label: String? = nil, note: String? = nil, path: String? = nil,
                 text: String? = nil, language: String? = nil, url: String? = nil,
-                recommended: Bool = false, selected: Bool = false) {
+                recommended: Bool = false, selected: Bool = false, crop: CropRect? = nil, cellRow: Int? = nil, cellCol: Int? = nil) {
         self.key = key; self.kind = kind; self.label = label; self.note = note; self.path = path
         self.text = text; self.language = language; self.url = url
         self.recommended = recommended; self.selected = selected
+        self.crop = crop; self.cellRow = cellRow; self.cellCol = cellCol
     }
 
     public var fileName: String? { path.map { ($0 as NSString).lastPathComponent } }
@@ -53,9 +57,10 @@ public struct Question: Codable, Identifiable, Hashable, Sendable {
     public var question: String?
     public var multi: Bool
     public var items: [Item]
+    public var slice: SliceSpec?         // set when the options are the cells of one image sheet
 
-    public init(id: String, title: String? = nil, question: String? = nil, multi: Bool = false, items: [Item]) {
-        self.id = id; self.title = title; self.question = question; self.multi = multi; self.items = items
+    public init(id: String, title: String? = nil, question: String? = nil, multi: Bool = false, items: [Item], slice: SliceSpec? = nil) {
+        self.id = id; self.title = title; self.question = question; self.multi = multi; self.items = items; self.slice = slice
     }
     public var heading: String { title ?? id }
 }

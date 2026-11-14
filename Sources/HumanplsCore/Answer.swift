@@ -6,6 +6,7 @@ public struct Picks: Codable, Sendable {
     public var retry: Set<String> = []                    // section ids with "none of these"
     public var sectionNotes: [String: String] = [:]
     public var annotated: [String: [String: String]] = [:]    // question id -> option key -> annotated PNG path
+    public var crops: [String: [String: String]] = [:]        // question id -> option key -> exported crop PNG path
     public var feedback: String = ""
 
     public init() {}
@@ -53,6 +54,9 @@ public enum AnswerText {
         if let n = picks.sectionNotes[s.id]?.trimmingCharacters(in: .whitespacesAndNewlines), !n.isEmpty {
             out += " | note: \(n)"
         }
+        // the picked cells of an image sheet, cut out as files
+        let cropped = items(of: s, picks).compactMap { i in picks.crops[s.id]?[i.key].map { (i, $0) } }
+        if !cropped.isEmpty { out += " | crops: " + cropped.map { "\($0.key) \($1)" }.joined(separator: "; ") }
         // annotated images are part of the answer even when the option was not picked
         let marked = s.items.compactMap { i in picks.annotated[s.id]?[i.key].map { (i, $0) } }
         if !marked.isEmpty {
@@ -61,10 +65,16 @@ public enum AnswerText {
         return out
     }
 
+    static func items(of s: Question, _ picks: Picks) -> [Item] {
+        let keys = picks.chosen[s.id] ?? []
+        return s.items.filter { keys.contains($0.key) }
+    }
+
     static func itemText(_ i: Item) -> String {
         var t = i.key
         if let n = i.answerName { t += " \"\(n)\"" }
-        if let f = i.fileName, f != i.answerName { t += " (\(f))" }
+        if let r = i.cellRow, let c = i.cellCol, let f = i.fileName { t += " (\(f) row \(r) col \(c))" }
+        else if let f = i.fileName, f != i.answerName { t += " (\(f))" }
         return t
     }
 }

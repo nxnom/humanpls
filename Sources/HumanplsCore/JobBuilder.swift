@@ -166,6 +166,7 @@ public struct JobBuilder {
         public var defaults: [String]?
         public var noPreselect = false
         public var itemsFile: String?
+        public var slice: String?                 // "auto" or "4x3" (columns x rows): cut one image sheet into cells
         public var positional: [String] = []
         public var sections: [[String]] = []     // each: [TITLE, OPTION...]
         public init() {}
@@ -179,7 +180,14 @@ public struct JobBuilder {
         let rec = a.recommend.map { $0.uppercased() }
         let def = a.defaults?.map { $0.uppercased() }
 
-        if !a.positional.isEmpty {
+        if let spec = a.slice {
+            guard a.positional.count == 1, a.sections.isEmpty, a.itemsFile == nil else {
+                throw JobError("--slice needs exactly one image (the sheet) and no --section or --items")
+            }
+            let file = a.positional[0].components(separatedBy: "::")[0].replacingOccurrences(of: "*", with: "", options: .anchored)
+            sections.append(try slicedQuestion(id: a.id, title: nil, question: nil, multi: a.multi, file: resolve(file), spec: spec,
+                                               recommend: rec, defaults: def, preselect: !a.noPreselect))
+        } else if !a.positional.isEmpty {
             let ks = Self.keys(a.positional.count)
             let items = try zip(a.positional, ks).map { try item(fromArg: $0, key: $1) }
             sections.append(try section(id: a.id, title: nil, question: nil, multi: a.multi, items: items,
@@ -199,6 +207,29 @@ public struct JobBuilder {
         let ids = sections.map { $0.id }
         guard Set(ids).count == ids.count else { throw JobError("question ids must be unique: \(ids)") }
         return Job(id: a.id, mode: .pick, title: a.title, question: a.question, sections: sections)
+    }
+
+    /// One image sheet cut into cells. Every cell is an image option that shows only its part of the sheet.
+    func slicedQuestion(id: String, title: String?, question: String?, multi: Bool, file: String, spec: String,
+                        recommend: [String], defaults: [String]?, preselect: Bool) throws -> Question {
+        var isDir: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: file, isDirectory: &isDir), !isDir.boolValue else { throw JobError("\(file) is not a file") }
+        guard Kinds.kind(ofPath: file)?.0 == .image else { throw JobError("--slice needs an image: \((file as NSString).lastPathComponent)") }
+        let rects: [CropRect], cols: Int, rows: Int, auto: Bool
+        if spec.lowercased() == "auto" {
+            guard let found = GridSlicer.detect(path: file) else {
+                throw JobError("could not find a grid in \((file as NSString).lastPathComponent): cells need empty space between them. Give the grid yourself, for example --slice 4x3 (columns x rows)")
+            }
+            (cols, rows, rects, auto) = (found.cols, found.rows, found.cells, true)
+        } else {
+            guard let g = GridSlicer.parse(spec) else { throw JobError("--slice must be auto or COLSxROWS, for example 4x3 (got \(spec))") }
+            (cols, rows, rects, auto) = (g.cols, g.rows, GridSlicer.even(rows: g.rows, cols: g.cols), false)
+        }
+        let items = GridSlicer.cellItems(path: file, rects: rects, cols: cols)
+        var q = try section(id: id, title: title, question: question, multi: multi, items: items,
+                            recommend: recommend, defaults: defaults, preselect: preselect, explicitSelected: [])
+        q.slice = SliceSpec(path: file, rows: rows, cols: cols, auto: auto)
+        return q
     }
 
     func jsonSections(file: String, args a: PickArgs, rec: [String], def: [String]?) throws -> [Question] {
@@ -231,6 +262,15 @@ public struct JobBuilder {
                 let recS = (s["recommend"] as? String).map { [$0.uppercased()] } ?? (s["recommend"] as? [String])?.map { $0.uppercased() } ?? []
                 var defS: [String]? = nil
                 if let d = s["default"] as? String { defS = [d.uppercased()] } else if let d = s["default"] as? [String] { defS = d.map { $0.uppercased() } }
+                if let spec = s["slice"] as? String {
+                    guard let raw = s["items"] as? [Any], raw.count == 1,
+                          let f = (raw[0] as? [String: Any])?["file"] as? String ?? (raw[0] as? String)?.components(separatedBy: "::")[0] else {
+                        throw JobError("question \(id): slice needs exactly one item with a file (the sheet)")
+                    }
+                    return try slicedQuestion(id: id, title: title, question: s["question"] as? String, multi: s["multi"] as? Bool ?? a.multi,
+                                              file: resolve(f, base: base), spec: spec, recommend: recS, defaults: defS,
+                                              preselect: s["preselect"] as? Bool ?? !a.noPreselect)
+                }
                 return try build(id: id, title: title, question: s["question"] as? String, multi: s["multi"] as? Bool ?? a.multi,
                                  raw: s["items"] as? [Any] ?? [], recommend: recS, defaults: defS, preselect: s["preselect"] as? Bool ?? !a.noPreselect)
             }

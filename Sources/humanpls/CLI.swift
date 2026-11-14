@@ -24,6 +24,8 @@ pick options:
   --question TEXT       what to decide
   --section TITLE OPTION...   one more question (repeatable)
   --items FILE.json     options from JSON: a list, {"items": [...]} or {"sections": [...]}
+  --slice auto|4x3      cut ONE image sheet (logos, contact sheet) into cells you can pick;
+                        auto finds the grid from the empty space, 4x3 = 4 columns x 3 rows
   --multi               allow several picks
   --recommend KEY       mark option KEY (A, B...) recommended (repeatable)
   --default KEY         pre-pick option KEY (repeatable)
@@ -135,6 +137,7 @@ func runPick(_ argv: [String]) {
         case "--title": a.title = value(s)
         case "--question": a.question = value(s)
         case "--items": a.itemsFile = value(s)
+        case "--slice": a.slice = value(s)
         case "--multi": a.multi = true
         case "--recommend": a.recommend.append(value(s))
         case "--default": a.defaults = (a.defaults ?? []) + [value(s)]

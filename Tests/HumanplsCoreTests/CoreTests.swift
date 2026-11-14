@@ -1,5 +1,17 @@
 import XCTest
+import ImageIO
+import CoreGraphics
 @testable import HumanplsCore
+
+enum NSBitmapImageRepCompat {
+    static func png(_ image: CGImage) -> Data {
+        let data = NSMutableData()
+        let dest = CGImageDestinationCreateWithData(data, "public.png" as CFString, 1, nil)!
+        CGImageDestinationAddImage(dest, image, nil)
+        CGImageDestinationFinalize(dest)
+        return data as Data
+    }
+}
 
 final class CoreTests: XCTestCase {
     var tmp: String!
@@ -237,6 +249,121 @@ final class CoreTests: XCTestCase {
         XCTAssertEqual(ok.compare, true)
         XCTAssertThrowsError(try builder().show(id: "c", title: nil, paths: ["a.png", "b.wav"], compare: true))
         XCTAssertNil(try builder().show(id: "c", title: nil, paths: ["a.png"]).compare)
+    }
+
+    // MARK: image sheets (slice)
+
+    /// A synthetic sheet: `cols` x `rows` colored squares on a plain background, with a small cell number in each corner.
+    func makeSheet(cols: Int, rows: Int, cell: Int = 200, gap: Bool = true, name: String = "sheet.png") throws -> String {
+        let w = cols * cell, h = rows * cell
+        let cs = CGColorSpace(name: CGColorSpace.sRGB)!
+        let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0, space: cs, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+        ctx.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 1)); ctx.fill(CGRect(x: 0, y: 0, width: w, height: h))
+        for r in 0..<rows { for c in 0..<cols {
+            let inset = gap ? 40 : 0
+            ctx.setFillColor(CGColor(red: Double(c) / Double(cols), green: 0.2, blue: Double(r) / Double(max(1, rows)), alpha: 1))
+            ctx.fill(CGRect(x: c * cell + inset, y: r * cell + inset, width: cell - 2 * inset, height: cell - 2 * inset))
+            if gap {   // a tiny "number" in the corner of the cell
+                ctx.setFillColor(CGColor(red: 0.5, green: 0.5, blue: 0.5, alpha: 1))
+                ctx.fill(CGRect(x: c * cell + 8, y: r * cell + cell - 22, width: 8, height: 12))
+            }
+        } }
+        let rep = NSBitmapImageRepCompat.png(ctx.makeImage()!)
+        let path = tmp + "/" + name
+        try rep.write(to: URL(fileURLWithPath: path))
+        return path
+    }
+
+    func testSliceParse() {
+        XCTAssertEqual(GridSlicer.parse("4x3")?.cols, 4)
+        XCTAssertEqual(GridSlicer.parse("4X3")?.rows, 3)
+        XCTAssertNil(GridSlicer.parse("1x1")); XCTAssertNil(GridSlicer.parse("0x3")); XCTAssertNil(GridSlicer.parse("auto")); XCTAssertNil(GridSlicer.parse("20x20"))
+    }
+
+    func testEvenCellsCoverTheImage() {
+        let cells = GridSlicer.even(rows: 3, cols: 4)
+        XCTAssertEqual(cells.count, 12)
+        XCTAssertEqual(cells[0], CropRect(x: 0, y: 0, w: 0.25, h: 1.0 / 3))
+        XCTAssertEqual(cells[5].x, 0.25, accuracy: 1e-9)        // row 2, col 2
+        XCTAssertEqual(cells[5].y, 1.0 / 3, accuracy: 1e-9)
+        XCTAssertEqual(cells.reduce(0) { $0 + $1.w * $1.h }, 1, accuracy: 1e-9)
+        let px = CropRect(x: 0.5, y: 0.5, w: 0.25, h: 0.25).pixels(width: 400, height: 200)
+        XCTAssertEqual(px, CGRect(x: 200, y: 100, width: 100, height: 50))
+    }
+
+    func testDetectFindsTheGridAndIgnoresCellNumbers() throws {
+        let path = try makeSheet(cols: 4, rows: 3)
+        let found = try XCTUnwrap(GridSlicer.detect(path: path))
+        XCTAssertEqual(found.cols, 4); XCTAssertEqual(found.rows, 3); XCTAssertEqual(found.cells.count, 12)
+        // each cell is about a quarter wide and a third high
+        for c in found.cells { XCTAssertEqual(c.w, 0.25, accuracy: 0.04); XCTAssertEqual(c.h, 1.0 / 3, accuracy: 0.04) }
+        XCTAssertEqual(found.cells[0].x, 0, accuracy: 1e-9)
+        XCTAssertEqual(found.cells.last.map { $0.x + $0.w }, 1)
+    }
+
+    func testDetectOtherShapes() throws {
+        let a = try XCTUnwrap(GridSlicer.detect(path: try makeSheet(cols: 2, rows: 2, name: "two.png")))
+        XCTAssertEqual([a.cols, a.rows], [2, 2])
+        let b = try XCTUnwrap(GridSlicer.detect(path: try makeSheet(cols: 5, rows: 1, name: "row.png")))
+        XCTAssertEqual([b.cols, b.rows], [5, 1])
+    }
+
+    func testDetectGivesUpWithoutGutters() throws {
+        XCTAssertNil(GridSlicer.detect(path: try makeSheet(cols: 4, rows: 3, gap: false, name: "solid.png")), "cells touch: no grid")
+        XCTAssertNil(GridSlicer.detect(path: tmp + "/missing.png"))
+    }
+
+    func testSliceBuildsCellOptions() throws {
+        let path = try makeSheet(cols: 4, rows: 3)
+        var a = JobBuilder.PickArgs(); a.id = "logo"; a.slice = "auto"; a.positional = [path]; a.recommend = ["G"]
+        let q = try builder().pick(a).sections[0]
+        XCTAssertEqual(q.items.count, 12)
+        XCTAssertEqual(q.items.map { $0.kind }, Array(repeating: .image, count: 12))
+        XCTAssertEqual(q.items[6].key, "G")
+        XCTAssertEqual([q.items[6].cellRow, q.items[6].cellCol], [2, 3])
+        XCTAssertTrue(q.items[6].recommended && q.items[6].selected)
+        XCTAssertEqual(q.slice, SliceSpec(path: path, rows: 3, cols: 4, auto: true))
+        XCTAssertTrue(q.items.allSatisfy { $0.path == path && $0.crop != nil }, "cells point into the one sheet, no copies")
+
+        a.slice = "2x2"; a.recommend = []
+        let m = try builder().pick(a).sections[0]
+        XCTAssertEqual(m.items.count, 4)
+        XCTAssertEqual(m.slice?.auto, false)
+    }
+
+    func testSliceErrors() throws {
+        let path = try makeSheet(cols: 4, rows: 3)
+        var a = JobBuilder.PickArgs(); a.id = "l"; a.slice = "auto"
+        a.positional = [path, path]
+        XCTAssertThrowsError(try builder().pick(a), "needs exactly one image")
+        a.positional = ["notes.md"]
+        XCTAssertThrowsError(try builder().pick(a), "not an image")
+        a.positional = [try makeSheet(cols: 4, rows: 3, gap: false, name: "touch.png")]
+        XCTAssertThrowsError(try builder().pick(a)) { XCTAssertTrue("\($0)".contains("--slice 4x3")) }
+        a.slice = "banana"; a.positional = [path]
+        XCTAssertThrowsError(try builder().pick(a))
+    }
+
+    func testSliceInJSONSection() throws {
+        let path = try makeSheet(cols: 3, rows: 2)
+        try #"{"sections": [{"id": "logo", "slice": "3x2", "recommend": "B", "items": [{"file": "sheet.png"}]}]}"#
+            .write(toFile: tmp + "/s.json", atomically: true, encoding: .utf8)
+        var a = JobBuilder.PickArgs(); a.id = "x"; a.itemsFile = "s.json"
+        let q = try builder().pick(a).sections[0]
+        XCTAssertEqual(q.items.count, 6)
+        XCTAssertEqual(q.items[1].recommended, true)
+        XCTAssertEqual(q.slice?.path, path)
+    }
+
+    func testAnswerForCellsWithCrops() throws {
+        let path = try makeSheet(cols: 4, rows: 3)
+        var a = JobBuilder.PickArgs(); a.id = "logo"; a.slice = "4x3"; a.positional = [path]
+        let job = try builder().pick(a)
+        var p = Picks(job: job)
+        p.chosen["logo"] = ["G"]
+        XCTAssertEqual(AnswerText.make(job: job, picks: p), "[logo] picked: G (sheet.png row 2 col 3)")
+        p.crops["logo"] = ["G": "/c/sheet-r2c3.png"]
+        XCTAssertEqual(AnswerText.make(job: job, picks: p), "[logo] picked: G (sheet.png row 2 col 3) | crops: G /c/sheet-r2c3.png")
     }
 
     // MARK: answer text
