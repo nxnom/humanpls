@@ -130,9 +130,6 @@ struct RichWeb: NSViewRepresentable {
 
     final class Coordinator: NSObject, WKNavigationDelegate {
         var loaded = ""
-        func webView(_ w: WKWebView, didFinish navigation: WKNavigation!) {
-            w.evaluateJavaScript("window.scrollTo(0, 0)")
-        }
         func webView(_ w: WKWebView, decidePolicyFor action: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
             if action.navigationType == .linkActivated, let u = action.request.url {
                 if u.scheme == "http" || u.scheme == "https" || u.scheme == "mailto" { NSWorkspace.shared.open(u) }
