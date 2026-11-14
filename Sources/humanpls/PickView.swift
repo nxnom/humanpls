@@ -34,7 +34,10 @@ final class PickModel: ObservableObject {
         layouts[q.id] = l
         if focus[q.id] == nil { focus[q.id] = chosen(q).sorted().first ?? q.items.first?.key }
     }
-    func focusedItem(_ q: Question) -> Item? { q.items.first { $0.key == focus[q.id] } ?? q.items.first }
+    /// The option shown large in the Detail layout: the one the person selected, else the first picked one, else the first.
+    func focusedItem(_ q: Question) -> Item? {
+        q.items.first { $0.key == focus[q.id] } ?? q.items.first { $0.key == chosen(q).sorted().first } ?? q.items.first
+    }
     func moveFocus(_ q: Question, _ d: Int) {
         guard !q.items.isEmpty else { return }
         let i = q.items.firstIndex { $0.key == focusedItem(q)?.key } ?? 0
