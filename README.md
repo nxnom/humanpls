@@ -17,9 +17,10 @@ humanpls reopen          # open the last popup again
 - **pick**: a sidebar page with one card per option. Text, audio (waveform), image (zoom), video, markdown and code (with syntax colors), HTML, PDF, and any other file (Quick Look thumbnail, Open, Reveal). Pick one or several, "none of these", a note per question, a Recommended badge that starts picked, select all.
 - **Image sheets**: `--slice auto` cuts one image (a logo grid, a contact sheet) into cells that you pick like separate options. The grid is found from the empty space between the marks. If it is wrong, use `--slice 4x3` (columns x rows) or the Grid steppers on the card. The picked cells are cut out at full resolution into `~/Library/Application Support/humanpls/crops/` and their paths go into the answer. The sheet itself is never copied or changed.
 - **show**: a viewer with a file list. Images: pinch zoom, pen, rectangle, arrow, text, colors, undo; Info panel with the prompt and seed stored in PNG files; A/B compare (side by side with synced zoom, or flip with `F`). Video: J K L (backward, pause, forward, faster on repeat), frame step, `M` to mark a moment with a note. Audio: waveform, marks.
-- **Send**: the answer is pasted into the terminal that ran the command and Enter is pressed. With tmux it goes to the exact pane, even if you switched apps. Otherwise it goes to the terminal app (needs the Accessibility permission). **Copy only** just copies. `--wait` prints the answer instead, for agents that can wait.
+- **Send**: the answer is pasted into the terminal that ran the command and Enter is pressed. With tmux it goes to the exact pane, even if you switched apps. Otherwise it goes to the terminal app (needs the Accessibility permission). **Copy answer** (`⇧⌘C`) copies the answer text, shows "Copied", and the popup stays open so you can still change it or press Send. `--wait` prints the answer instead, for agents that can wait. Paths with spaces are put in quotes in the answer.
 - **Menu bar icon** with the history. Click a popup to open it again with your picks.
-- **Keyboard**: `A`-`Z` pick, `0` none of these, `[` `]` change question, `Space` or `⌘Y` Quick Look, `⌘↩` send, `Esc` cancel.
+- **The popup** opens on the screen where your mouse is, is visible on every desktop (also over a full-screen terminal), and remembers its size.
+- **Keyboard**: `A`-`Z` pick, `0` none of these, `[` `]` change question, `Space` or `⌘Y` Quick Look, `⌘↩` send, `⇧⌘C` copy the answer, `Esc` cancel. The letter shortcuts are off while you type in a text field, where `⌘A` `⌘C` `⌘V` `⌘X` `⌘Z` work as usual (the app has a hidden Edit menu for this).
 
 Files are read from the path the agent gave. Nothing is copied. The only new files are annotated images and cut-out cells: they are written to `~/Library/Application Support/humanpls/annotations/` and `.../crops/` and deleted after 14 days.
 
@@ -46,9 +47,9 @@ docs/PROTOCOL.md       the CLI, the socket protocol, the JSON options format and
 
 ## Tests
 
-- `swift test`: core logic (option parsing, answers, history, PNG text chunks, marks, annotation undo, socket).
-- `./scripts/e2e.sh`: CLI to socket to app to answer, with no window (`HUMANPLS_AUTOANSWER`). Run it on the built app with `BIN=build/humanpls.app/Contents/MacOS/humanpls ./scripts/e2e.sh`.
-- `humanpls selftest`: draws annotations, exports a PNG and checks pixels, color profile and file locations.
+- `swift test`: core logic (option parsing, answers, history, PNG text chunks, marks, annotation undo, image-sheet slicing, socket). 37 tests.
+- `./scripts/e2e.sh`: CLI to socket to app to answer, with no window (`HUMANPLS_AUTOANSWER`), including slicing a sheet and exporting a crop. 17 checks. Run it on the built app with `BIN=build/humanpls.app/Contents/MacOS/humanpls ./scripts/e2e.sh`.
+- `humanpls selftest`: draws annotations, exports a PNG and checks pixels, color profile and file locations; cuts a cell out of a sheet; checks the Edit menu shortcuts.
 
 The visual parts (layout, clicks, zoom feel) are checked by hand.
 
