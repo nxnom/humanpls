@@ -18,13 +18,40 @@ final class ShowModel: ObservableObject {
         selection = job.sections.first?.items.first?.key
     }
 
+    @Published var focusMark: UUID?
+
+    /// The current play position of a video or audio item, in seconds.
+    func currentTime(_ it: Item) -> Double {
+        guard let p = it.path else { return 0 }
+        if it.kind == .video { return max(0, Cache.player(p).currentTime().seconds) }
+        return Cache.audioModel(p).player?.currentTime ?? 0
+    }
+    func addMark(_ it: Item, time: Double? = nil) {
+        let m = state.addMark(it.key, time: time ?? currentTime(it))
+        focusMark = m.id
+    }
+    func seek(_ it: Item, to t: Double) {
+        guard let p = it.path else { return }
+        if it.kind == .video {
+            let pl = Cache.player(p)
+            pl.pause()
+            pl.seek(to: CMTime(seconds: t, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
+        } else if let a = Cache.audioModel(p).player {
+            a.currentTime = t
+            Cache.audioModel(p).progress = a.duration > 0 ? t / a.duration : 0
+        }
+    }
+
     var current: Item? { items.first { $0.key == selection } ?? items.first }
     var index: Int { items.firstIndex { $0.key == current?.key } ?? 0 }
     func move(_ d: Int) { guard !items.isEmpty else { return }; selection = items[min(items.count - 1, max(0, index + d))].key }
 
     var text: String { ShowAnswer.make(job: job, state: state) }
 
+    func quickLook() { QuickLook.shared.show(items.compactMap { $0.path }, index: index) }
+
     func finish(_ a: FinishAction) {
+        QuickLook.shared.close()
         if a != .cancel {
             for it in items where it.kind == .image {
                 if let p = it.path, store.has(p), let out = store.export(p) { state.annotated[it.key] = out }
@@ -116,6 +143,47 @@ struct AudioViewer: View {
     }
 }
 
+/// Notes at moments in a video or audio file. They go into the answer as `@0:02.4 "note"`.
+struct MarksPanel: View {
+    @ObservedObject var model: ShowModel
+    let item: Item
+    @FocusState var focus: UUID?
+
+    var marks: [Mark] { model.state.marks[item.key] ?? [] }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("Marks").font(.caption.weight(.semibold)).foregroundStyle(.secondary).textCase(.uppercase)
+                Text("press M at the moment you want to note").font(.caption).foregroundStyle(.tertiary)
+                Spacer()
+                Button { model.addMark(item) } label: { Label("Add mark here", systemImage: "flag") }.controlSize(.small)
+            }
+            if !marks.isEmpty {
+                ScrollView {
+                    VStack(spacing: 4) {
+                        ForEach(marks) { m in
+                            HStack(spacing: 8) {
+                                Button(m.timeText) { model.seek(item, to: m.time) }
+                                    .font(.system(.callout, design: .monospaced)).buttonStyle(.link).help("Jump to this time")
+                                TextField("What is wrong or good here?", text: Binding(
+                                    get: { m.note }, set: { model.state.setNote(item.key, id: m.id, note: $0) }))
+                                    .textFieldStyle(.roundedBorder).focused($focus, equals: m.id)
+                                Button { model.state.removeMark(item.key, id: m.id) } label: { Image(systemName: "trash") }
+                                    .buttonStyle(.plain).foregroundStyle(.secondary).help("Remove")
+                            }
+                        }
+                    }
+                }.frame(maxHeight: 130)
+            }
+        }
+        .padding(.horizontal, 12).padding(.vertical, 8).background(.bar)
+        .onChange(of: model.focusMark) { _, id in
+            if let id, marks.contains(where: { $0.id == id }) { focus = id; model.focusMark = nil }
+        }
+    }
+}
+
 struct ShowRoot: View {
     @ObservedObject var model: ShowModel
 
@@ -131,6 +199,7 @@ struct ShowRoot: View {
                 VStack(spacing: 0) {
                     if let it = model.current {
                         viewer(it).id(it.key)
+                        if it.kind == .video || it.kind == .audio { MarksPanel(model: model, item: it) }
                         Text(hint(it)).font(.caption).foregroundStyle(.secondary).padding(6).frame(maxWidth: .infinity).background(.bar)
                     }
                 }.frame(minWidth: 520)
@@ -142,6 +211,8 @@ struct ShowRoot: View {
                     InfoText(item: it)
                 }
                 Spacer()
+                Button { model.quickLook() } label: { Label("Quick Look", systemImage: "eye") }
+                    .keyboardShortcut("y", modifiers: .command).controlSize(.small)
                 if let it = model.current, it.kind == .image, let p = it.path { InfoButton(path: p) }
                 if let it = model.current, let p = it.path {
                     Button("Reveal in Finder") { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: p)]) }
@@ -151,6 +222,12 @@ struct ShowRoot: View {
                 Button(model.waiting ? "Send answer" : "Send") { model.finish(.send) }
                     .keyboardShortcut(.return, modifiers: .command).buttonStyle(.borderedProminent)
             }.padding(10)
+        }
+        .focusable().focusEffectDisabled()
+        .onKeyPress(phases: .down) { k in
+            if k.characters.lowercased() == "m", let it = model.current, it.kind == .audio { model.addMark(it); return .handled }
+            if k.characters == " ", let it = model.current, it.kind != .video, it.kind != .audio { model.quickLook(); return .handled }
+            return .ignored
         }
     }
 
@@ -166,7 +243,7 @@ struct ShowRoot: View {
                 AnnotateBar(store: model.store, path: it.path ?? "")
                 AnnotatableImage(path: it.path ?? "", store: model.store)
             }
-        case .video: VideoViewer(path: it.path ?? "")
+        case .video: VideoViewer(path: it.path ?? "", onMark: { t in model.addMark(it, time: t) })
         case .audio: AudioViewer(path: it.path ?? "")
         case .pdf: PDFRep(path: it.path ?? "")
         case .html: WebRep(path: it.path)
@@ -178,8 +255,8 @@ struct ShowRoot: View {
     func hint(_ it: Item) -> String {
         switch it.kind {
         case .image: return "Pinch or scroll to zoom  ·  pick the hand to move  ·  double-click: fit / 100%"
-        case .video: return "J ◀◀   K pause   L ▶▶   (press again for faster)   ·   ← → one frame   ·   Space play"
-        case .audio: return "Click the waveform to seek"
+        case .video: return "J ◀◀   K pause   L ▶▶   (press again for faster)   ·   ← → one frame   ·   Space play   ·   M mark"
+        case .audio: return "Click the waveform to seek   ·   M mark"
         default: return ""
         }
     }

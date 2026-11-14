@@ -14,6 +14,7 @@ final class PickModel: ObservableObject {
     @Published var override: String? = nil
     @Published var showPreview = false
     let store = AnnotationStore()
+    var hovered: (question: String, key: String)?     // the option under the mouse, for Quick Look
     var onFinish: (FinishAction, String, Picks) -> Void = { _, _, _ in }
 
     init(job: Job, picks: Picks? = nil, waiting: Bool) {
@@ -61,7 +62,16 @@ final class PickModel: ObservableObject {
         }
     }
 
+    /// Quick Look the files of one question, starting at the option under the mouse (or the first picked one).
+    func quickLook(_ q: Question) {
+        let files = q.items.filter { $0.path != nil }
+        guard !files.isEmpty else { NSSound.beep(); return }
+        let start = (hovered?.question == q.id ? hovered?.key : nil) ?? chosen(q).sorted().first
+        QuickLook.shared.show(files.map { $0.path! }, index: files.firstIndex { $0.key == start } ?? 0)
+    }
+
     func finish(_ a: FinishAction) {
+        QuickLook.shared.close()
         if a != .cancel { exportAnnotations() }
         onFinish(a, text, picks)
     }
@@ -122,6 +132,7 @@ struct OptionCard: View {
         .frame(maxWidth: .infinity, minHeight: item.kind == .chip ? 92 : 0, alignment: .topLeading)
         .selectable(on, pick)
         .modifier(DragOut(path: item.path))
+        .onHover { if $0 { model.hovered = (section.id, item.key) } }
     }
 
     var header: some View {
@@ -385,6 +396,7 @@ struct PickRoot: View {
         if c == "[" { go(-1, proxy); return .handled }
         guard let s = currentSection else { return .ignored }
         if c == "0" { model.toggleRetry(s); return .handled }
+        if c == " " { model.quickLook(s); return .handled }
         if c.count == 1, let ch = c.uppercased().first, ch.isLetter,
            let it = s.items.first(where: { $0.key == String(ch) }) {
             model.toggle(s, it.key); return .handled
@@ -405,6 +417,8 @@ struct PickRoot: View {
                     Label("Answer", systemImage: model.showPreview ? "chevron.down" : "chevron.up").labelStyle(.titleAndIcon)
                 }.controlSize(.small)
                 TextField("Feedback (optional)", text: model.feedback).textFieldStyle(.roundedBorder)
+                Button { if let s = currentSection { model.quickLook(s) } } label: { Image(systemName: "eye") }
+                    .keyboardShortcut("y", modifiers: .command).help("Quick Look (Space)").controlSize(.small)
                 Button("Copy only") { model.finish(.copy) }.keyboardShortcut("c", modifiers: [.command, .shift])
                 Button(model.waiting ? "Send answer" : "Send") { model.finish(.send) }
                     .keyboardShortcut(.return, modifiers: .command).buttonStyle(.borderedProminent)
