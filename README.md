@@ -72,13 +72,25 @@ A friendly dome-shaped body with a chunky white `h`, two little eyes and three c
 
 ## Install
 
+**Download** (easiest): get `humanpls-<version>.dmg` from the [Releases](https://github.com/nxnom/humanpls/releases) page, open it, and drag **humanpls** to **Applications**. Open it once. A menu bar icon appears. Click it and choose **Install 'humanpls' command…**: this puts the `humanpls` command on your PATH (it may ask for your password once). The first time macOS may say the app is from an unidentified developer: right click the app, choose **Open**, then **Open** again. This is needed once, because the app is not notarized yet.
+
+**Homebrew** (installs the app and the command in one step):
+
 ```
-./scripts/install.sh
+brew tap nxnom/humanpls https://github.com/nxnom/humanpls
+brew install --cask humanpls
 ```
 
-Builds `humanpls.app` into `~/Applications` and links the `humanpls` command into `~/.local/bin`. Needs macOS 14+ and Xcode (Swift 6).
+**From source** (needs Xcode, Swift 6, macOS 14+):
 
-Development: `swift build`, `swift test`, `./scripts/e2e.sh`, `./scripts/build-app.sh debug`.
+```
+git clone https://github.com/nxnom/humanpls && cd humanpls
+./scripts/install.sh      # builds the app into ~/Applications and links the command into ~/.local/bin
+```
+
+Then try: `humanpls pick --id test "text:Yes" "text:No"`. The agent's terminal needs the `humanpls` command on its PATH. In tmux the answer goes to the exact pane; otherwise it goes to the terminal app and macOS asks for the Accessibility permission once.
+
+For developers: `swift build`, `swift test`, `./scripts/e2e.sh`, `./scripts/build-app.sh debug`. To make a release: `scripts/release.sh` (builds the universal app, the DMG and the Homebrew cask; it can sign with a Developer ID, see the script).
 
 ## Layout
 

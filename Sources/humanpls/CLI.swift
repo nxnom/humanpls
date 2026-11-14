@@ -242,14 +242,14 @@ func runQuit() {
 }
 
 func runInstallCLI(_ argv: [String]) {
-    let dir = (argv.first.map { ($0 as NSString).expandingTildeInPath }) ?? (NSHomeDirectory() + "/.local/bin")
-    try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
-    let target = Bundle.main.executablePath ?? CommandLine.arguments[0]
-    let link = (dir as NSString).appendingPathComponent("humanpls")
-    try? FileManager.default.removeItem(atPath: link)
-    do { try FileManager.default.createSymbolicLink(atPath: link, withDestinationPath: target) } catch { fail("\(error)") }
-    print("linked \(link) -> \(target)")
-    if !(ProcessInfo.processInfo.environment["PATH"] ?? "").split(separator: ":").contains(Substring(dir)) {
-        print("note: \(dir) is not in your PATH")
+    // humanpls install-cli [DIR]   default: /usr/local/bin when it is writable, else ~/.local/bin
+    MainActor.assumeIsolated {
+        let dir = argv.first.map { ($0 as NSString).expandingTildeInPath }
+            ?? (FileManager.default.isWritableFile(atPath: CommandLineTool.systemDir) ? CommandLineTool.systemDir : CommandLineTool.userDir)
+        do {
+            let l = try CommandLineTool.install(into: dir)
+            print("linked \(l) -> \(CommandLineTool.executable)")
+            if !CommandLineTool.isOnPath(dir) { print("note: \(dir) is not on your PATH. Add it, for example in ~/.zshrc:  export PATH=\"\(dir):$PATH\"") }
+        } catch { fail("\(error)") }
     }
 }

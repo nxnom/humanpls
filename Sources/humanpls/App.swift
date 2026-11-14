@@ -293,6 +293,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(.separator())
         let clear = NSMenuItem(title: "Clear history", action: #selector(clearHistory), keyEquivalent: ""); clear.target = self
         menu.addItem(clear)
+        if let l = CommandLineTool.installedLink() {
+            let done = NSMenuItem(title: "✓ Command installed (\(l))", action: nil, keyEquivalent: ""); done.isEnabled = false
+            menu.addItem(done)
+        } else {
+            let inst = NSMenuItem(title: "Install 'humanpls' command…", action: #selector(installCommand), keyEquivalent: ""); inst.target = self
+            menu.addItem(inst)
+        }
         let quit = NSMenuItem(title: "Quit humanpls", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         menu.addItem(quit)
     }
@@ -301,6 +308,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         _ = controller.reopen(ref: s.representedObject as? String, env: ClientEnv())
     }
     @objc func clearHistory() { controller.history.clear() }
+
+    @objc func installCommand() {
+        NSApp.activate()
+        let r = CommandLineTool.installInteractively()
+        let alert = NSAlert()
+        if r.path.isEmpty {
+            alert.messageText = "The command was not installed"
+            alert.informativeText = r.note ?? ""
+        } else {
+            alert.messageText = "The humanpls command is installed"
+            alert.informativeText = "\(r.path)\n\nOpen a new terminal window and run:  humanpls --help" + (r.note.map { "\n\n" + $0 } ?? "")
+        }
+        alert.runModal()
+    }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ a: NSApplication) -> Bool { false }
     func applicationWillTerminate(_ n: Notification) { unlink(Paths.socket) }

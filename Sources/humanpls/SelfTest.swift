@@ -108,6 +108,19 @@ enum SelfTest {
             check("sidebar picks: each row keeps its own question", model.pickedItems.map { $0.question.id } == ["photo", "voice"])
         } catch { check("sidebar picks test could not build the job: \(error)", false) }
 
+        // the command line tool link
+        do {
+            let dir = tmp + "/bin"
+            let l = try CommandLineTool.install(into: dir)
+            check("install command: makes a link named humanpls that points to the program", l == dir + "/humanpls"
+                  && (try? FileManager.default.destinationOfSymbolicLink(atPath: l)) == CommandLineTool.executable)
+            _ = try CommandLineTool.install(into: dir)     // again: replaces the link, no error
+            check("install command: can be run again", (try? FileManager.default.destinationOfSymbolicLink(atPath: l)) == CommandLineTool.executable)
+            try "old".write(toFile: dir + "/humanpls", atomically: true, encoding: .utf8)   // an old real file in the way
+            check("install command: replaces an old file with the link", (try? CommandLineTool.install(into: dir)) != nil
+                  && (try? FileManager.default.destinationOfSymbolicLink(atPath: l)) != nil)
+        } catch { check("install command test failed: \(error)", false) }
+
         let mb = AppDelegate.menuBarImage()
         check("menu bar icon is built in, is a template, and is 18 points tall", mb?.isTemplate == true && mb?.size.height == 18 && (mb?.size.width ?? 0) > 10)
         check("menu bar icon is the logo (has transparent corners and an opaque body)", {

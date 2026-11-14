@@ -5,7 +5,6 @@ cd "$(dirname "$0")/.."
 ./scripts/build-app.sh release
 DEST="$HOME/Applications"
 mkdir -p "$DEST"
-./.build/release/humanpls quit >/dev/null 2>&1 || true
 "$DEST/humanpls.app/Contents/MacOS/humanpls" quit >/dev/null 2>&1 || true
 rm -rf "$DEST/humanpls.app"
 cp -R build/humanpls.app "$DEST/humanpls.app"
