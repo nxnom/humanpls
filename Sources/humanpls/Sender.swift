@@ -2,6 +2,12 @@ import AppKit
 import ApplicationServices
 import HumanplsCore
 
+/// True while a text field is being edited. Letter shortcuts (A-Z pick, M mark, F flip) must not fire then.
+@MainActor
+func isTypingInTextField() -> Bool {
+    NSApp.keyWindow?.firstResponder is NSTextView
+}
+
 /// Puts the answer into the chat of the terminal that started the popup.
 /// 1. tmux: paste into the exact pane and press Enter. No focus change, no permission.
 /// 2. Terminal app: bring it to the front, then Cmd+V and Return (needs the Accessibility permission).

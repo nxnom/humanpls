@@ -59,6 +59,17 @@ final class ShowModel: ObservableObject {
 
     var text: String { ShowAnswer.make(job: job, state: state) }
 
+    @Published var copied = false
+
+    func copyAnswer() {
+        for it in items where it.kind == .image {
+            if let p = it.path, store.has(p), let out = store.export(p) { state.annotated[it.key] = out }
+        }
+        Sender.copy(text)
+        copied = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { [weak self] in self?.copied = false }
+    }
+
     func quickLook() { QuickLook.shared.show(items.compactMap { $0.path }, index: index) }
 
     func finish(_ a: FinishAction) {
@@ -269,15 +280,19 @@ struct ShowRoot: View {
                 if let it = model.current, it.kind == .image, let p = it.path { InfoButton(path: p) }
                 if let it = model.current, let p = it.path {
                     Button("Reveal in Finder") { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: p)]) }
-                    Button("Copy path") { Sender.copy(p) }
+                    Button("Copy file path") { Sender.copy(p) }
                 }
                 TextField("Message (optional)", text: $model.state.message).textFieldStyle(.roundedBorder).frame(maxWidth: 260)
+                Button { model.copyAnswer() } label: {
+                    Label(model.copied ? "Copied" : "Copy answer", systemImage: model.copied ? "checkmark" : "doc.on.doc")
+                }.keyboardShortcut("c", modifiers: [.command, .shift]).help("Copy the answer text (⇧⌘C). The window stays open.")
                 Button(model.waiting ? "Send answer" : "Send") { model.finish(.send) }
                     .keyboardShortcut(.return, modifiers: .command).buttonStyle(.borderedProminent)
             }.padding(10)
         }
         .focusable().focusEffectDisabled()
         .onKeyPress(phases: .down) { k in
+            if isTypingInTextField() { return .ignored }
             if k.characters.lowercased() == "m", let it = model.current, it.kind == .audio { model.addMark(it); return .handled }
             if k.characters.lowercased() == "f", model.comparePair != nil { model.showB.toggle(); return .handled }
             if k.characters == " ", let it = model.current, it.kind != .video, it.kind != .audio { model.quickLook(); return .handled }

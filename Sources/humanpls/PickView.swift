@@ -101,11 +101,22 @@ final class PickModel: ObservableObject {
     func exportCrops() {
         for q in job.sections where q.slice != nil {
             for it in q.items where chosen(q).contains(it.key) {
+                if picks.crops[q.id]?[it.key] != nil, FileManager.default.fileExists(atPath: picks.crops[q.id]![it.key]!) { continue }   // already cut out
                 if let p = it.path, let c = it.crop, let out = CellExporter.export(path: p, crop: c, row: it.cellRow, col: it.cellCol) {
                     picks.crops[q.id, default: [:]][it.key] = out
                 }
             }
         }
+    }
+
+    @Published var copied = false
+
+    /// Put the answer on the clipboard. The popup stays open, so you can still change it or press Send.
+    func copyAnswer() {
+        exportAnnotations(); exportCrops()
+        Sender.copy(text)
+        copied = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { [weak self] in self?.copied = false }
     }
 
     func finish(_ a: FinishAction) {
@@ -476,6 +487,7 @@ struct PickRoot: View {
     }
 
     func handle(_ k: KeyPress, _ proxy: ScrollViewProxy) -> KeyPress.Result {
+        if isTypingInTextField() { return .ignored }      // typing in a note or the feedback field is not a shortcut
         if k.modifiers.contains(.command) { return .ignored }
         let c = k.characters
         if c == "]" { go(1, proxy); return .handled }
@@ -505,7 +517,9 @@ struct PickRoot: View {
                 TextField("Feedback (optional)", text: model.feedback).textFieldStyle(.roundedBorder)
                 Button { if let s = currentSection { model.quickLook(s) } } label: { Image(systemName: "eye") }
                     .keyboardShortcut("y", modifiers: .command).help("Quick Look (Space)").controlSize(.small)
-                Button("Copy only") { model.finish(.copy) }.keyboardShortcut("c", modifiers: [.command, .shift])
+                Button { model.copyAnswer() } label: {
+                    Label(model.copied ? "Copied" : "Copy answer", systemImage: model.copied ? "checkmark" : "doc.on.doc")
+                }.keyboardShortcut("c", modifiers: [.command, .shift]).help("Copy the answer text (⇧⌘C). The popup stays open.")
                 Button(model.waiting ? "Send answer" : "Send") { model.finish(.send) }
                     .keyboardShortcut(.return, modifiers: .command).buttonStyle(.borderedProminent)
             }

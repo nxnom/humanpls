@@ -80,6 +80,8 @@ enum SelfTest {
         cellRep?.colorAt(x: 50, y: 50)?.getRed(&cr, green: &cg2, blue: &cb, alpha: &ca)
         check("exported cell is the right half (blue)", cb > 0.9 && cr < 0.1)
         check("cell goes to the app's crops folder, named by row and column", (cellPath ?? "").contains("/crops/sheet-r1c2-"))
+        check("the exported file name has no spaces or AM/PM, whatever the 12-hour setting is",
+              (cellPath ?? "").range(of: #"/sheet-r1c2-\d{6}-\d{6}\.png$"#, options: .regularExpression) != nil)
         check("the sheet is not changed", FileManager.default.fileExists(atPath: sheet))
 
         try? FileManager.default.removeItem(atPath: tmp)

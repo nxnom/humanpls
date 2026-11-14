@@ -132,8 +132,8 @@ final class AnnotationStore: ObservableObject {
     /// Writes the annotated PNG into the app's own folder (never next to the agent's file). Returns its path.
     func export(_ path: String) -> String? {
         guard has(path), let img = NSImage(contentsOfFile: path), let data = AnnotationRenderer.png(image: img, shapes: shapes(path)) else { return nil }
-        let stamp = DateFormatter(); stamp.dateFormat = "yyMMdd-HHmmss"
-        let stem = ((path as NSString).lastPathComponent as NSString).deletingPathExtension
+        let stamp = DateFormatter(); stamp.locale = Locale(identifier: "en_US_POSIX"); stamp.dateFormat = "yyMMdd-HHmmss"
+        let stem = ((path as NSString).lastPathComponent as NSString).deletingPathExtension.replacingOccurrences(of: " ", with: "-")
         let out = (Self.dir as NSString).appendingPathComponent("\(stem)-annotated-\(stamp.string(from: Date())).png")
         do { try data.write(to: URL(fileURLWithPath: out)) } catch { return nil }
         return out

@@ -355,6 +355,16 @@ final class CoreTests: XCTestCase {
         XCTAssertEqual(q.slice?.path, path)
     }
 
+    func testPathsWithSpacesAreQuoted() throws {
+        XCTAssertEqual(AnswerText.quoted("/a/b.png"), "/a/b.png")
+        XCTAssertEqual(AnswerText.quoted("/Users/me/Library/Application Support/x.png"), "\"/Users/me/Library/Application Support/x.png\"")
+        let path = try makeSheet(cols: 2, rows: 1)
+        var a = JobBuilder.PickArgs(); a.id = "l"; a.slice = "2x1"; a.positional = [path]
+        let job = try builder().pick(a)
+        var p = Picks(job: job); p.chosen["l"] = ["B"]; p.crops["l"] = ["B": "/App Support/c.png"]
+        XCTAssertTrue(AnswerText.make(job: job, picks: p).hasSuffix("| crops: B \"/App Support/c.png\""))
+    }
+
     func testAnswerForCellsWithCrops() throws {
         let path = try makeSheet(cols: 4, rows: 3)
         var a = JobBuilder.PickArgs(); a.id = "logo"; a.slice = "4x3"; a.positional = [path]

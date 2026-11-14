@@ -19,6 +19,11 @@ public struct Picks: Codable, Sendable {
 }
 
 public enum AnswerText {
+    /// A path with spaces is put in quotes so an agent can read it as one path.
+    public static func quoted(_ path: String) -> String {
+        path.contains(where: { $0.isWhitespace }) ? "\"\(path)\"" : path
+    }
+
     /// One line per question. A single question uses the short form:
     ///   [narrator-voice] picked: B "older, raspy" (take2.wav)
     public static func make(job: Job, picks: Picks) -> String {
@@ -56,11 +61,11 @@ public enum AnswerText {
         }
         // the picked cells of an image sheet, cut out as files
         let cropped = items(of: s, picks).compactMap { i in picks.crops[s.id]?[i.key].map { (i, $0) } }
-        if !cropped.isEmpty { out += " | crops: " + cropped.map { "\($0.key) \($1)" }.joined(separator: "; ") }
+        if !cropped.isEmpty { out += " | crops: " + cropped.map { "\($0.key) \(quoted($1))" }.joined(separator: "; ") }
         // annotated images are part of the answer even when the option was not picked
         let marked = s.items.compactMap { i in picks.annotated[s.id]?[i.key].map { (i, $0) } }
         if !marked.isEmpty {
-            out += " | annotated: " + marked.map { "\($0.key)\($0.answerName.map { " \"\($0)\"" } ?? "") \($1)" }.joined(separator: "; ")
+            out += " | annotated: " + marked.map { "\($0.key)\($0.answerName.map { " \"\($0)\"" } ?? "") \(quoted($1))" }.joined(separator: "; ")
         }
         return out
     }

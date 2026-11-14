@@ -53,7 +53,7 @@ public enum ShowAnswer {
                 parts.append(n.isEmpty ? "@\(m.timeText)" : "@\(m.timeText) \"\(n)\"")
             }
             if !parts.isEmpty { lines.append("\(it.fileName ?? it.key): " + parts.joined(separator: "; ")) }
-            if let a = state.annotated[it.key] { lines.append("\(it.fileName ?? it.key): annotated \(a)") }
+            if let a = state.annotated[it.key] { lines.append("\(it.fileName ?? it.key): annotated \(AnswerText.quoted(a))") }
         }
         let m = state.message.trimmingCharacters(in: .whitespacesAndNewlines)
         if !m.isEmpty { lines.append(m) }

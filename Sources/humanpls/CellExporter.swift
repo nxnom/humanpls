@@ -20,8 +20,8 @@ enum CellExporter {
 
     static func export(path: String, crop: CropRect, row: Int?, col: Int?) -> String? {
         guard let data = png(path: path, crop: crop) else { return nil }
-        let stamp = DateFormatter(); stamp.dateFormat = "yyMMdd-HHmmss"
-        let stem = ((path as NSString).lastPathComponent as NSString).deletingPathExtension
+        let stamp = DateFormatter(); stamp.locale = Locale(identifier: "en_US_POSIX"); stamp.dateFormat = "yyMMdd-HHmmss"
+        let stem = ((path as NSString).lastPathComponent as NSString).deletingPathExtension.replacingOccurrences(of: " ", with: "-")
         let cell = (row != nil && col != nil) ? "-r\(row!)c\(col!)" : ""
         let out = (dir as NSString).appendingPathComponent("\(stem)\(cell)-\(stamp.string(from: Date())).png")
         do { try data.write(to: URL(fileURLWithPath: out)) } catch { return nil }
