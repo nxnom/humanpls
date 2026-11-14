@@ -77,7 +77,12 @@ func startApp() {
     if let bundle = appBundlePath() {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-        p.arguments = ["-g", "-a", bundle]
+        var a = ["-g"]
+        // `open` does not pass our environment on, so forward the variables that move the app's data (tests, custom setups)
+        for k in ["HUMANPLS_HOME", "HUMANPLS_SOCKET"] {
+            if let v = ProcessInfo.processInfo.environment[k] { a += ["--env", "\(k)=\(v)"] }
+        }
+        p.arguments = a + ["-a", bundle]
         try? p.run(); p.waitUntilExit()
     } else {
         // development: run ourselves as the app, detached
