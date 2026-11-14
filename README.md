@@ -31,6 +31,7 @@ humanpls fixes this. The agent runs one command, a popup opens with the options,
 humanpls pick --id narrator --question "Which take fits?" a.wav::calm "*b.wav::older, raspy" c.wav
 humanpls pick --id ep02 --section Name text:Aung text:Maung --section Plates --multi a.png b.png c.png
 humanpls pick --id logo --slice auto logo-sheet.png     # one image with many logos: pick a cell
+humanpls pick --id hero --layout detail a.png b.png c.png   # a list and a large preview
 humanpls show gen/ clip.mp4 notes.md                    # just look at things
 humanpls reopen                                         # open the last popup again
 ```
@@ -54,8 +55,9 @@ The top screenshot is the **image sheet** feature: the agent made one picture wi
 
 ## What it does
 
-- **pick**: a sidebar page with one card per option. Text, audio (waveform), image (zoom), video, markdown and code (with syntax colors), HTML, PDF, and any other file (Quick Look thumbnail, Open, Reveal). Pick one or several, "none of these", a note per question, a Recommended badge that starts picked, select all.
-- **Image sheets**: `--slice auto` cuts one image (a logo grid, a contact sheet) into cells that you pick like separate options. The grid is found from the empty space between the marks. If it is wrong, use `--slice 4x3` (columns x rows) or the Grid steppers on the card. The picked cells are cut out at full resolution into `~/Library/Application Support/humanpls/crops/` and their paths go into the answer. The sheet itself is never copied or changed.
+- **pick**: one popup for one or several questions. A **sidebar** shows the title, the questions (with a check when answered) and **your picks** so far, with thumbnails and a remove button. Each option is a card: text, audio (waveform), image (zoom), video, markdown and code (with syntax colors), HTML, PDF, and any other file (Quick Look thumbnail, Open, Reveal). Pick one or several, "none of these", a note per question, a Recommended badge that starts picked, select all.
+- **Three layouts** per question, switched in the header (or started with `--layout grid|detail|dense`): **Grid** (a card per option), **Detail** (a list on the left and a large preview of one option on the right; `↑` `↓` move, `Return` picks) and **Dense** (only big thumbnails, the default for image sheets).
+- **Image sheets**: `--slice auto` cuts one image (a logo grid, a contact sheet) into cells that you pick like separate options. The grid is found from the empty space between the marks. If it is wrong, use `--slice 4x3` (columns x rows) or the Grid steppers on the card. Each cell is trimmed to its content, so a logo is not a small mark in a big white cell. The picked cells are cut out at full resolution into `~/Library/Application Support/humanpls/crops/` and their paths go into the answer. The sheet itself is never copied or changed.
 - **show**: a viewer with a file list. Images: pinch zoom, pen, rectangle, arrow, text, colors, undo; Info panel with the prompt and seed stored in PNG files; A/B compare (side by side with synced zoom, or flip with `F`). Video: J K L (backward, pause, forward, faster on repeat), frame step, `M` to mark a moment with a note. Audio: waveform, marks.
 - **Send**: the answer is pasted into the terminal that ran the command and Enter is pressed. With tmux it goes to the exact pane, even if you switched apps. Otherwise it goes to the terminal app (needs the Accessibility permission). **Copy answer** (`⇧⌘C`) copies the answer text, shows "Copied", and the popup stays open so you can still change it or press Send. `--wait` prints the answer instead, for agents that can wait. Paths with spaces are put in quotes in the answer.
 - **Menu bar icon** with the history. Click a popup to open it again with your picks.
