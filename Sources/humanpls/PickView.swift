@@ -8,7 +8,7 @@ enum FinishAction { case send, copy, cancel }
 
 @MainActor
 final class PickModel: ObservableObject {
-    let job: Job
+    @Published var job: Job
     let waiting: Bool
     @Published var picks: Picks { didSet { override = nil } }
     @Published var override: String? = nil
@@ -70,9 +70,47 @@ final class PickModel: ObservableObject {
         QuickLook.shared.show(files.map { $0.path! }, index: files.firstIndex { $0.key == start } ?? 0)
     }
 
+    // MARK: image sheets cut into cells
+
+    func question(_ id: String) -> Int? { job.sections.firstIndex { $0.id == id } }
+
+    /// Cut the sheet again with another grid. Picks in that question start over.
+    func reslice(_ id: String, cols: Int, rows: Int) {
+        guard let qi = question(id), let spec = job.sections[qi].slice, cols >= 1, rows >= 1, cols * rows >= 2, cols * rows <= 78 else { return }
+        apply(id, spec: SliceSpec(path: spec.path, rows: rows, cols: cols, auto: false), rects: GridSlicer.even(rows: rows, cols: cols))
+    }
+
+    func autoSlice(_ id: String) {
+        guard let qi = question(id), let spec = job.sections[qi].slice else { return }
+        let path = spec.path
+        Task {
+            let found = await Task.detached { GridSlicer.detect(path: path) }.value
+            guard let f = found else { NSSound.beep(); return }
+            apply(id, spec: SliceSpec(path: path, rows: f.rows, cols: f.cols, auto: true), rects: f.cells)
+        }
+    }
+
+    private func apply(_ id: String, spec: SliceSpec, rects: [CropRect]) {
+        guard let qi = question(id) else { return }
+        job.sections[qi].items = GridSlicer.cellItems(path: spec.path, rects: rects, cols: spec.cols)
+        job.sections[qi].slice = spec
+        picks.chosen[id] = []; picks.retry.remove(id)
+    }
+
+    /// The picked cells are cut out of the sheet at full resolution and written to the app's own folder.
+    func exportCrops() {
+        for q in job.sections where q.slice != nil {
+            for it in q.items where chosen(q).contains(it.key) {
+                if let p = it.path, let c = it.crop, let out = CellExporter.export(path: p, crop: c, row: it.cellRow, col: it.cellCol) {
+                    picks.crops[q.id, default: [:]][it.key] = out
+                }
+            }
+        }
+    }
+
     func finish(_ a: FinishAction) {
         QuickLook.shared.close()
-        if a != .cancel { exportAnnotations() }
+        if a != .cancel { exportAnnotations(); exportCrops() }
         onFinish(a, text, picks)
     }
 }
@@ -120,7 +158,10 @@ struct OptionCard: View {
 
     var on: Bool { model.chosen(section).contains(item.key) }
     func pick() { model.toggle(section, item.key) }
-    var title: String { item.answerName ?? item.fileName ?? "Option \(item.key)" }
+    var title: String {
+        if let r = item.cellRow, let c = item.cellCol { return item.answerName ?? "Row \(r) · Col \(c)" }
+        return item.answerName ?? item.fileName ?? "Option \(item.key)"
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -131,7 +172,7 @@ struct OptionCard: View {
         .padding(item.kind == .chip ? 16 : 12)
         .frame(maxWidth: .infinity, minHeight: item.kind == .chip ? 92 : 0, alignment: .topLeading)
         .selectable(on, pick)
-        .modifier(DragOut(path: item.path))
+        .modifier(DragOut(path: item.crop == nil ? item.path : nil))
         .onHover { if $0 { model.hovered = (section.id, item.key) } }
     }
 
@@ -170,6 +211,21 @@ struct OptionCard: View {
                 .frame(maxHeight: 220)
         case .markdown, .code:
             RichText(item: item).frame(height: 240).clipShape(RoundedRectangle(cornerRadius: 8))
+        case .image where item.crop != nil:
+            // a cell of a sheet: show the whole cell on white (logos sit on white), click the arrows to zoom
+            Color.white.frame(maxWidth: .infinity).frame(height: 150)
+                .overlay { if let thumb { Image(nsImage: thumb).resizable().scaledToFit().padding(6) } }
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.primary.opacity(0.12)))
+                .allowsHitTesting(false)
+                .overlay(alignment: .topTrailing) {
+                    Button { zoom = true } label: {
+                        Image(systemName: "arrow.up.left.and.arrow.down.right").foregroundStyle(.white).padding(7)
+                            .background(Color.black.opacity(0.5), in: Circle())
+                    }.buttonStyle(.plain).padding(8)
+                }
+                .task(id: item.crop) { if let p = item.path, let c = item.crop { thumb = await Cache.cell(p, c) } }
+                .sheet(isPresented: $zoom) { CellSheet(path: item.path ?? "", crop: item.crop, title: "\(item.key)  \(title)") }
         case .image:
             Color.clear.frame(maxWidth: .infinity).frame(height: 170)
                 .overlay { if let thumb { Image(nsImage: thumb).resizable().scaledToFill() } }
@@ -210,6 +266,21 @@ struct DragOut: ViewModifier {
     func body(content: Content) -> some View {
         if let path { content.onDrag { NSItemProvider(contentsOf: URL(fileURLWithPath: path)) ?? NSItemProvider() } }
         else { content }
+    }
+}
+
+/// Zoom into one cell of a sheet. Only that part of the image is shown.
+struct CellSheet: View {
+    let path: String; let crop: CropRect?; let title: String
+    @Environment(\.dismiss) var dismiss
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack { Text(title).font(.headline); Spacer()
+                Text("Pinch to zoom · double-click: fit / 100%").font(.caption).foregroundStyle(.secondary)
+                Button("Done") { dismiss() }.keyboardShortcut(.escape, modifiers: []) }.padding(10)
+            Divider()
+            ZoomImage(path: path, crop: crop)
+        }.frame(minWidth: 700, minHeight: 520)
     }
 }
 
@@ -256,6 +327,7 @@ struct SectionView: View {
     @ObservedObject var model: PickModel
 
     var columns: [GridItem] {
+        if section.slice != nil { return [GridItem(.adaptive(minimum: 150), spacing: 10)] }
         let kinds = Set(section.items.map { $0.kind })
         if kinds.isSubset(of: [.chip]) { return [GridItem(.adaptive(minimum: 200), spacing: 12)] }
         if kinds.isSubset(of: [.image, .video]) { return [GridItem(.adaptive(minimum: 250), spacing: 14)] }
@@ -270,6 +342,7 @@ struct SectionView: View {
                     Text("\(section.heading) · \(section.multi ? "pick several" : "pick one")").font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
+                if section.slice != nil { sliceControls }
                 if section.multi {
                     let all = model.chosen(section).count == section.items.count
                     Text("\(model.chosen(section).count) of \(section.items.count)").font(.caption).foregroundStyle(.secondary)
@@ -281,6 +354,19 @@ struct SectionView: View {
             }
             retryCard
             TextField("Note on \(section.heading.lowercased()) (optional)", text: model.sectionNote(section)).textFieldStyle(.roundedBorder)
+        }
+    }
+
+    /// Fix the grid by hand when the automatic one is wrong.
+    var sliceControls: some View {
+        let s = section.slice!
+        return HStack(spacing: 6) {
+            Text("Grid").font(.caption).foregroundStyle(.secondary)
+            Stepper("\(s.cols) col", onIncrement: { model.reslice(section.id, cols: s.cols + 1, rows: s.rows) },
+                    onDecrement: { model.reslice(section.id, cols: s.cols - 1, rows: s.rows) }).font(.caption).fixedSize()
+            Stepper("\(s.rows) row", onIncrement: { model.reslice(section.id, cols: s.cols, rows: s.rows + 1) },
+                    onDecrement: { model.reslice(section.id, cols: s.cols, rows: s.rows - 1) }).font(.caption).fixedSize()
+            Button("Auto") { model.autoSlice(section.id) }.controlSize(.small).disabled(s.auto).help("Find the grid from the empty space")
         }
     }
 

@@ -45,6 +45,24 @@ check "history lists the 6 popups that opened" "6" "$count"
 out=$(HUMANPLS_AUTOANSWER=send "$BIN" reopen narrator)
 check "reopen from history" "reopened narrator" "$out"
 
+if python3 -c "import PIL" 2>/dev/null; then
+  python3 -c "
+from PIL import Image
+im = Image.new('RGB', (400, 200), (255, 0, 0)); im.paste((0, 0, 255), (200, 0, 400, 200)); im.save('$FILES/sheet.png')"
+  out=$(HUMANPLS_AUTOANSWER=send "$BIN" pick --id sl --wait --slice 2x1 --recommend B "$FILES/sheet.png")
+  check "slice: answer names the cell" "[sl] picked: B (sheet.png row 1 col 2) | crops: B " "$(echo "$out" | sed 's|crops: B .*|crops: B |')"
+  crop=$(echo "$out" | sed 's|.*crops: B ||')
+  size=$(python3 -c "from PIL import Image; print(Image.open('$crop').size)")
+  check "slice: the exported crop is the right half, full size" "(200, 200)" "$size"
+  px=$(python3 -c "from PIL import Image; print(Image.open('$crop').convert('RGB').getpixel((100, 100)))")
+  check "slice: the crop is blue" "(0, 0, 255)" "$px"
+  case "$crop" in "$HOME_DIR"/crops/*) pass=$((pass+1)); echo "ok   slice: crop is in the app folder, not next to the sheet";; *) fail=$((fail+1)); echo "FAIL crop location: $crop";; esac
+  out=$("$BIN" pick --id sl2 --dump-job --slice 2x1 "$FILES/sheet.png" | grep -c '"cellCol"')
+  check "slice: --dump-job lists the cells" "2" "$out"
+else
+  echo "skip slice checks (python3 with Pillow is needed to make a test image)"
+fi
+
 "$BIN" selftest >/dev/null 2>&1; code=$?
 check "annotation export self-test (draws shapes, reads the PNG pixels back)" "0" "$code"
 

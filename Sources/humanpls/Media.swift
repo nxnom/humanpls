@@ -1,4 +1,5 @@
 import SwiftUI
+import HumanplsCore
 import AppKit
 import AVKit
 import AVFoundation
@@ -31,6 +32,44 @@ enum Cache {
         return img
     }
 
+    static var sheets: [String: CGImage] = [:]
+    static var cells: [String: NSImage] = [:]
+
+    /// The whole image sheet, decoded once. Cells are cut from this.
+    static func sheet(_ path: String) async -> CGImage? {
+        if let s = sheets[path] { return s }
+        let cg: CGImage? = await Task.detached(priority: .userInitiated) {
+            guard let src = CGImageSourceCreateWithURL(URL(fileURLWithPath: path) as CFURL, nil) else { return nil }
+            let o: [CFString: Any] = [kCGImageSourceCreateThumbnailFromImageAlways: true, kCGImageSourceCreateThumbnailWithTransform: true,
+                                      kCGImageSourceThumbnailMaxPixelSize: 8192]
+            return CGImageSourceCreateThumbnailAtIndex(src, 0, o as CFDictionary)
+        }.value
+        if let cg { sheets[path] = cg }
+        return cg
+    }
+
+    /// One cell of a sheet as a small picture for the card.
+    static func cell(_ path: String, _ crop: CropRect, maxPixel: Int = 520) async -> NSImage? {
+        let key = "\(path)|\(crop.x)|\(crop.y)|\(crop.w)|\(crop.h)|\(maxPixel)"
+        if let c = cells[key] { return c }
+        guard let full = await sheet(path), let part = full.cropping(to: crop.pixels(width: full.width, height: full.height)) else { return nil }
+        var out = part
+        let longest = max(part.width, part.height)
+        if longest > maxPixel, let cs = part.colorSpace ?? CGColorSpace(name: CGColorSpace.sRGB) {
+            let k = Double(maxPixel) / Double(longest)
+            let w = max(1, Int(Double(part.width) * k)), h = max(1, Int(Double(part.height) * k))
+            if let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0, space: cs,
+                                   bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) {
+                ctx.interpolationQuality = .high
+                ctx.draw(part, in: CGRect(x: 0, y: 0, width: w, height: h))
+                if let small = ctx.makeImage() { out = small }
+            }
+        }
+        let img = NSImage(cgImage: out, size: NSSize(width: out.width, height: out.height))
+        cells[key] = img
+        return img
+    }
+
     static func poster(_ path: String) async -> NSImage? {
         if let p = posters[path] { return p }
         let gen = AVAssetImageGenerator(asset: AVURLAsset(url: URL(fileURLWithPath: path)))
@@ -59,6 +98,7 @@ enum Cache {
     static func stopAll() {
         players.values.forEach { $0.pause() }
         audio.values.forEach { $0.stop() }
+        sheets.removeAll(); cells.removeAll()      // free the decoded sheets when a popup closes
     }
 }
 
@@ -228,6 +268,7 @@ final class SyncHub {
 struct ZoomImage: NSViewRepresentable {
     let path: String
     var hub: SyncHub? = nil
+    var crop: CropRect? = nil          // show only this part of the image (a cell of a sheet)
 
     final class Coordinator { var path = "" }
     func makeCoordinator() -> Coordinator { Coordinator() }
@@ -240,9 +281,7 @@ struct ZoomImage: NSViewRepresentable {
         sv.hasVerticalScroller = true; sv.hasHorizontalScroller = true
         sv.autohidesScrollers = true
         sv.drawsBackground = true; sv.backgroundColor = NSColor(white: 0.1, alpha: 1)
-        if let img = NSImage(contentsOfFile: path) {
-            // use pixel size so 100% really is 100%
-            if let rep = img.representations.first, rep.pixelsWide > 0 { img.size = NSSize(width: rep.pixelsWide, height: rep.pixelsHigh) }
+        if let img = Self.load(path, crop) {
             let iv = NSImageView(frame: NSRect(origin: .zero, size: img.size))
             iv.image = img; iv.imageScaling = .scaleAxesIndependently
             sv.documentView = iv; sv.imgSize = img.size
@@ -250,6 +289,18 @@ struct ZoomImage: NSViewRepresentable {
         context.coordinator.path = path
         hub?.register(sv)
         return sv
+    }
+
+    /// The image at its real pixel size (so 100% is 100%), or only the cropped part of it.
+    static func load(_ path: String, _ crop: CropRect?) -> NSImage? {
+        if let crop, let src = CGImageSourceCreateWithURL(URL(fileURLWithPath: path) as CFURL, nil),
+           let full = CGImageSourceCreateImageAtIndex(src, 0, nil),
+           let part = full.cropping(to: crop.pixels(width: full.width, height: full.height)) {
+            return NSImage(cgImage: part, size: NSSize(width: part.width, height: part.height))
+        }
+        guard let img = NSImage(contentsOfFile: path) else { return nil }
+        if let rep = img.representations.first, rep.pixelsWide > 0 { img.size = NSSize(width: rep.pixelsWide, height: rep.pixelsHigh) }
+        return img
     }
 
     /// A new path (flip between two images) keeps the zoom and position.

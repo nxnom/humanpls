@@ -4,10 +4,15 @@
 
 ```
 humanpls pick --id ID [--title T] [--question Q] [--multi] [--recommend KEY]... [--default KEY]... [--no-preselect]
-              [--items FILE.json] [--section TITLE OPTION...]... [--wait] [--timeout SECONDS] [--dump-job] [OPTION...]
+              [--items FILE.json] [--slice auto|COLSxROWS] [--section TITLE OPTION...]... [--wait] [--timeout SECONDS] [--dump-job] [OPTION...]
 humanpls show [--id ID] [--title T] [--compare] [--wait] [--dump-job] FILE_OR_FOLDER...
 humanpls reopen [ID]      humanpls list      humanpls quit      humanpls install-cli [DIR]      humanpls serve      humanpls selftest
 ```
+
+`--slice` takes exactly one image (the sheet) and turns its cells into the options. `auto` finds the grid from the empty space
+between the marks (small cell numbers are ignored) and fails with a hint if the cells touch. `4x3` means 4 columns by 3 rows.
+Every cell is an image option with `crop` (x, y, w, h as fractions, origin top-left), `cellRow` and `cellCol`, pointing into the one sheet.
+In JSON a question can have `"slice": "auto"` or `"4x3"` and exactly one item with a `file`.
 
 `show --compare` opens the first two images side by side (it needs at least two images).
 
@@ -54,6 +59,12 @@ Name: B "Maung"
 Voice: none of these: try again | note: all too young
 Plates: A "Living room" (a.png); C "Garden" (c.png) | annotated: A "Living room" /path/a-annotated-251115-021000.png
 feedback: same house as episode 1
+```
+
+A picked cell of a sheet names its row and column, and the cut-out file follows (full resolution, in the app folder):
+
+```
+[logo] picked: G (sheet.png row 2 col 3) | crops: G /Users/me/Library/Application Support/humanpls/crops/sheet-r2c3-251115-021000.png
 ```
 
 `show`:

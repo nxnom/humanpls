@@ -15,8 +15,7 @@ final class PopupWindow: NSObject, NSWindowDelegate {
     let job: Job
     var finished = false
     var onDone: (FinishAction, String, Picks?) -> Void
-    var autoText: (() -> String)?
-    var autoPicks: (() -> Picks?)?
+    var autoFinish: ((FinishAction) -> Void)?       // test mode: finish like a person pressing the button
 
     init<V: View>(job: Job, title: String, autosave: String, size: NSSize, content: V,
                   onDone: @escaping (FinishAction, String, Picks?) -> Void) {
@@ -105,18 +104,18 @@ final class Controller {
                                 size: job.sections.count > 1 ? NSSize(width: 1020, height: 740) : NSSize(width: 760, height: 700),
                                 content: PickRoot(model: model).onExitCommand { model.finish(.cancel) }, onDone: finishNow)
             model.onFinish = { [weak popup] a, t, p in popup?.finish(a, t, p) }
-            popup.autoText = { model.text }; popup.autoPicks = { model.picks }
+            popup.autoFinish = { model.finish($0) }
         case .show:
             let model = ShowModel(job: job, waiting: wait)
             popup = PopupWindow(job: job, title: "humanpls · \(job.heading)", autosave: "humanpls.show",
                                 size: NSSize(width: 1100, height: 760),
                                 content: ShowRoot(model: model).onExitCommand { model.finish(.cancel) }, onDone: finishNow)
             model.onFinish = { [weak popup] a, t in popup?.finish(a, t, nil) }
-            popup.autoText = { model.text }
+            popup.autoFinish = { model.finish($0) }
         }
         open[job.id] = popup
         if let auto = Controller.autoAction(env) {
-            DispatchQueue.main.async { popup.finish(auto, popup.autoText?() ?? "", popup.autoPicks?()) }
+            DispatchQueue.main.async { popup.autoFinish?(auto) }
         } else {
             popup.show()
         }
@@ -217,7 +216,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func applicationDidFinishLaunching(_ n: Notification) {
         if UnixSocket.connect() != nil { exit(0) }        // already running
-        AnnotationStore.prune()
+        AnnotationStore.prune(); CellExporter.prune()
         do { server = try Server(controller: controller); server?.start() }
         catch { FileHandle.standardError.write(Data("humanpls: \(error)\n".utf8)); exit(1) }
 
