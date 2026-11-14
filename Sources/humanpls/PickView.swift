@@ -190,7 +190,8 @@ struct OptionCard: View {
             if let n = item.note, !n.isEmpty { Text(n).font(.caption).foregroundStyle(.secondary).allowsHitTesting(false) }
         }
         .padding(item.kind == .chip ? 16 : 12)
-        .frame(maxWidth: .infinity, minHeight: item.kind == .chip ? 92 : 0, alignment: .topLeading)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .frame(height: item.kind == .chip ? 132 : nil, alignment: .topLeading)        // text cards are all the same size
         .selectable(on, pick)
         .modifier(DragOut(path: item.crop == nil ? item.path : nil))
         .onHover { if $0 { model.hovered = (section.id, item.key) } }
@@ -357,6 +358,7 @@ struct SectionView: View {
     @ObservedObject var model: PickModel
 
     var only: Bool { model.job.sections.count == 1 }
+    var number: Int { (model.job.sections.firstIndex { $0.id == section.id } ?? 0) + 1 }
     /// The title of the question. With a single question, the title of the whole popup question is used.
     var titleText: String { section.question ?? (only ? model.job.question : nil) ?? section.heading }
     var subtitle: String {
@@ -370,7 +372,7 @@ struct SectionView: View {
             let longest = section.items.map { ($0.text ?? "").count }.max() ?? 0
             return [GridItem(.adaptive(minimum: longest > 14 ? 270 : 200), spacing: 12)]
         }
-        if kinds.isSubset(of: [.image, .video]) { return [GridItem(.adaptive(minimum: 260), spacing: 14)] }
+        if kinds.isSubset(of: [.image, .video]) { return [GridItem(.adaptive(minimum: 230), spacing: 14)] }
         return [GridItem(.flexible())]
     }
 
@@ -378,6 +380,10 @@ struct SectionView: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .center, spacing: 12) {
                 VStack(alignment: .leading, spacing: 3) {
+                    if !only {
+                        Text("QUESTION \(number) OF \(model.job.sections.count)").font(.caption2.weight(.semibold)).tracking(0.8)
+                            .foregroundStyle(Color.accentColor)
+                    }
                     Text(titleText).font(.title2.weight(.semibold)).fixedSize(horizontal: false, vertical: true)
                     Text(subtitle).font(.callout).foregroundStyle(.secondary)
                 }
@@ -400,8 +406,11 @@ struct SectionView: View {
                 }
             }
             retryCard
-            TextField("Note on \(only ? "your choice" : section.heading.lowercased()) (optional)", text: model.sectionNote(section)).textFieldStyle(.roundedBorder)
+            NoteField(placeholder: "Add a note about \(only ? "your choice" : section.heading.lowercased()) (optional)", text: model.sectionNote(section), minLines: 2)
         }
+        .padding(only ? 0 : 20)
+        .background(only ? AnyShapeStyle(Color.clear) : AnyShapeStyle(Color.primary.opacity(0.035)), in: RoundedRectangle(cornerRadius: 16))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(only ? Color.clear : Color.primary.opacity(0.10), lineWidth: 1))
     }
 
     /// Fix the grid by hand when the automatic one is wrong.
@@ -474,7 +483,7 @@ struct PickRoot: View {
     func page(_ proxy: ScrollViewProxy) -> some View {
         GeometryReader { outer in
             ScrollView {
-                VStack(alignment: .leading, spacing: 34) {
+                VStack(alignment: .leading, spacing: 22) {
                     ForEach(secs) { s in
                         SectionView(section: s, model: model).id(s.id)
                             .background(GeometryReader { g in Color.clear.preference(key: SecKey.self, value: [s.id: g.frame(in: .named("scroll")).minY]) })
@@ -519,15 +528,17 @@ struct PickRoot: View {
         VStack(spacing: 8) {
             if model.showPreview {
                 TextEditor(text: Binding(get: { model.text }, set: { model.override = $0 }))
-                    .font(.system(.callout, design: .monospaced)).frame(height: 96)
-                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(.quaternary))
+                    .font(.system(size: 13, design: .monospaced)).scrollContentBackground(.hidden)
+                    .padding(8).frame(height: 120)
+                    .background(RoundedRectangle(cornerRadius: 10).fill(Color.primary.opacity(0.06)))
+                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.primary.opacity(0.14)))
             }
             HStack(spacing: 10) {
                 Text("\(model.answeredCount) of \(secs.count) answered").font(.caption).foregroundStyle(.secondary)
                 Button { model.showPreview.toggle() } label: {
                     Label("Answer", systemImage: model.showPreview ? "chevron.down" : "chevron.up").labelStyle(.titleAndIcon)
                 }.controlSize(.small)
-                TextField("Feedback (optional)", text: model.feedback).textFieldStyle(.roundedBorder)
+                NoteField(placeholder: "Feedback for the agent (optional)", text: model.feedback, minLines: 1, maxLines: 4)
                 Button { if let s = currentSection { model.quickLook(s) } } label: { Image(systemName: "eye") }
                     .keyboardShortcut("y", modifiers: .command).help("Quick Look (Space)").controlSize(.small)
                 Button { model.copyAnswer() } label: {
@@ -536,6 +547,6 @@ struct PickRoot: View {
                 Button(model.waiting ? "Send answer" : "Send") { model.finish(.send) }
                     .keyboardShortcut(.return, modifiers: .command).buttonStyle(.borderedProminent)
             }
-        }.padding(12)
+        }.padding(.horizontal, 14).padding(.vertical, 12)
     }
 }
