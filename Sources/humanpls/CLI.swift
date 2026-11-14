@@ -8,7 +8,8 @@ humanpls \(version): ask a human to pick between options, or just look at files.
 
 Usage:
   humanpls pick --id ID [options] OPTION...      ask a question (a popup opens)
-  humanpls show [--id ID] FILE_OR_FOLDER...      look at images, video, audio, text, markdown, code
+  humanpls show [--id ID] [--compare] FILE_OR_FOLDER...   look at images, video, audio, text, markdown, code
+                                                 --compare opens the first two images side by side
   humanpls reopen [ID]                           open the last popup again (or one from the history)
   humanpls list                                  recent popups
   humanpls quit                                  quit the menu bar app
@@ -162,11 +163,12 @@ func runPick(_ argv: [String]) {
 func runShow(_ argv: [String]) {
     var id: String?, title: String?
     var paths: [String] = []
-    var wait = false, dump = false
+    var wait = false, dump = false, compare = false
     var i = 0
     while i < argv.count {
         let s = argv[i]
         switch s {
+        case "--compare": compare = true
         case "--id": i += 1; if i < argv.count { id = argv[i] }
         case "--title": i += 1; if i < argv.count { title = argv[i] }
         case "--wait": wait = true
@@ -178,7 +180,7 @@ func runShow(_ argv: [String]) {
         i += 1
     }
     let job: Job
-    do { job = try JobBuilder().show(id: id, title: title, paths: paths) } catch { fail("\(error)") }
+    do { job = try JobBuilder().show(id: id, title: title, paths: paths, compare: compare) } catch { fail("\(error)") }
     submit(job, wait: wait, timeout: nil, dump: dump)
 }
 

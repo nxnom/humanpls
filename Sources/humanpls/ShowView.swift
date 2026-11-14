@@ -17,7 +17,9 @@ final class ShowModel: ObservableObject {
 
     init(job: Job, waiting: Bool) {
         self.job = job; self.waiting = waiting
-        if let k = job.sections.first?.items.first?.key { selected = [k] }
+        if job.compare == true {
+            selected = Set((job.sections.first?.items ?? []).filter { $0.kind == .image }.prefix(2).map { $0.key })
+        } else if let k = job.sections.first?.items.first?.key { selected = [k] }
     }
 
     /// Two images picked with Command-click: compare them.

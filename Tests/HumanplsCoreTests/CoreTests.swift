@@ -231,6 +231,14 @@ final class CoreTests: XCTestCase {
         XCTAssertEqual(back.shapes.first?.color, "#0A84FF")
     }
 
+    func testShowCompareNeedsTwoImages() throws {
+        try Data([0]).write(to: URL(fileURLWithPath: tmp + "/b.png"))
+        let ok = try builder().show(id: "c", title: nil, paths: ["a.png", "b.png"], compare: true)
+        XCTAssertEqual(ok.compare, true)
+        XCTAssertThrowsError(try builder().show(id: "c", title: nil, paths: ["a.png", "b.wav"], compare: true))
+        XCTAssertNil(try builder().show(id: "c", title: nil, paths: ["a.png"]).compare)
+    }
+
     // MARK: answer text
 
     func job2() throws -> Job {

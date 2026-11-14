@@ -69,6 +69,7 @@ public struct Job: Codable, Identifiable, Sendable {
     public var question: String?
     public var sections: [Question]
     public var createdAt: Date
+    public var compare: Bool?            // show: open with the first two images side by side
 
     public init(id: String, mode: JobMode, title: String? = nil, question: String? = nil, sections: [Question], createdAt: Date = Date()) {
         self.id = id; self.mode = mode; self.title = title; self.question = question

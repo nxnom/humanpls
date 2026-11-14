@@ -5,9 +5,11 @@
 ```
 humanpls pick --id ID [--title T] [--question Q] [--multi] [--recommend KEY]... [--default KEY]... [--no-preselect]
               [--items FILE.json] [--section TITLE OPTION...]... [--wait] [--timeout SECONDS] [--dump-job] [OPTION...]
-humanpls show [--id ID] [--title T] [--wait] [--dump-job] FILE_OR_FOLDER...
+humanpls show [--id ID] [--title T] [--compare] [--wait] [--dump-job] FILE_OR_FOLDER...
 humanpls reopen [ID]      humanpls list      humanpls quit      humanpls install-cli [DIR]      humanpls serve      humanpls selftest
 ```
+
+`show --compare` opens the first two images side by side (it needs at least two images).
 
 An OPTION is `path`, `path::label`, `text:Aung` or `text:Aung::note`. A leading `*` marks it recommended (it starts picked).
 Short text (up to 80 characters, one line) is shown as a big chip, longer text as a text card.

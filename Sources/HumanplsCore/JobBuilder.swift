@@ -244,7 +244,7 @@ public struct JobBuilder {
     // MARK: show
 
     /// Files and folders to look at. Folders are expanded (not recursive), sorted by name.
-    public func show(id: String?, title: String?, paths: [String]) throws -> Job {
+    public func show(id: String?, title: String?, paths: [String], compare: Bool = false) throws -> Job {
         var files: [String] = []
         for p in paths {
             let r = resolve(p)
@@ -266,6 +266,9 @@ public struct JobBuilder {
             return Item(key: k, kind: kind, path: f, language: lang)
         }
         let jid = id ?? "show-\(Int(Date().timeIntervalSince1970))"
-        return Job(id: jid, mode: .show, title: title, sections: [Question(id: "files", title: "Files", multi: false, items: items)])
+        if compare, items.filter({ $0.kind == .image }).count < 2 { throw JobError("--compare needs at least two images") }
+        var job = Job(id: jid, mode: .show, title: title, sections: [Question(id: "files", title: "Files", multi: false, items: items)])
+        if compare { job.compare = true }
+        return job
     }
 }
