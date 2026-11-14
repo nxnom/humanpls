@@ -4,6 +4,11 @@ import HumanplsCore
 
 // MARK: one popup window
 
+/// The first click on an inactive popup must also act (select, press a button), not only focus the window.
+final class FirstMouseHostingView<V: View>: NSHostingView<V> {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+}
+
 @MainActor
 final class PopupWindow: NSObject, NSWindowDelegate {
     let window: NSWindow
@@ -21,7 +26,7 @@ final class PopupWindow: NSObject, NSWindowDelegate {
         window.level = .floating
         window.isReleasedWhenClosed = false
         window.delegate = self
-        window.contentView = NSHostingView(rootView: content)
+        window.contentView = FirstMouseHostingView(rootView: content)
         let had = window.setFrameUsingName(autosave)
         window.setFrameAutosaveName(autosave)
         if !had { placeOnMouseScreen(size) }
@@ -37,7 +42,7 @@ final class PopupWindow: NSObject, NSWindowDelegate {
 
     func show() {
         window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        NSApp.activate()
     }
 
     func finish(_ a: FinishAction, _ text: String, _ picks: Picks?) {

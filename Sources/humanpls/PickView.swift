@@ -101,24 +101,26 @@ struct OptionCard: View {
         VStack(alignment: .leading, spacing: 8) {
             header
             content
-            if let n = item.note, !n.isEmpty { Text(n).font(.caption).foregroundStyle(.secondary) }
+            if let n = item.note, !n.isEmpty { Text(n).font(.caption).foregroundStyle(.secondary).allowsHitTesting(false) }
         }
         .padding(item.kind == .chip ? 16 : 12)
         .frame(maxWidth: .infinity, minHeight: item.kind == .chip ? 92 : 0, alignment: .topLeading)
         .selectable(on, pick)
-        .onDrag { item.path.map { NSItemProvider(contentsOf: URL(fileURLWithPath: $0)) ?? NSItemProvider() } ?? NSItemProvider() }
+        .modifier(DragOut(path: item.path))
     }
 
     var header: some View {
         HStack(spacing: 8) {
-            if item.kind != .chip { KeyCap(t: item.key) }
-            if item.kind == .chip {
-                Text(item.text ?? "").font(.system(size: 26, weight: .semibold, design: .rounded)).lineLimit(2)
-            } else {
-                Text(title).font(.headline).lineLimit(1)
-            }
-            if item.recommended && item.kind != .chip { Badge() }
-            Spacer()
+            Group {
+                if item.kind != .chip { KeyCap(t: item.key) }
+                if item.kind == .chip {
+                    Text(item.text ?? "").font(.system(size: 26, weight: .semibold, design: .rounded)).lineLimit(2)
+                } else {
+                    Text(title).font(.headline).lineLimit(1)
+                }
+                if item.recommended && item.kind != .chip { Badge() }
+                Spacer()
+            }.allowsHitTesting(false)
             Button(action: pick) {
                 Image(systemName: on ? "checkmark.circle.fill" : "circle").font(.title2)
                     .foregroundStyle(on ? Color.accentColor : .secondary)
@@ -129,9 +131,10 @@ struct OptionCard: View {
     @ViewBuilder var content: some View {
         switch item.kind {
         case .chip:
-            if item.recommended { Badge() }
+            if item.recommended { Badge().allowsHitTesting(false) }
         case .text:
-            ScrollView { Text(item.text ?? "").font(.system(.body, design: .serif)).lineSpacing(4).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading) }
+            ScrollView { Text(item.text ?? "").font(.system(.body, design: .serif)).lineSpacing(4).frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle()).onTapGesture(perform: pick) }
                 .frame(maxHeight: 220)
         case .markdown, .code:
             RichText(item: item).frame(height: 240).clipShape(RoundedRectangle(cornerRadius: 8))
@@ -139,6 +142,7 @@ struct OptionCard: View {
             Color.clear.frame(maxWidth: .infinity).frame(height: 170)
                 .overlay { if let thumb { Image(nsImage: thumb).resizable().scaledToFill() } }
                 .clipShape(RoundedRectangle(cornerRadius: 8))
+                .allowsHitTesting(false)
                 .overlay(alignment: .topTrailing) {
                     Button { zoom = true } label: {
                         Image(systemName: "arrow.up.left.and.arrow.down.right").foregroundStyle(.white).padding(7)
@@ -165,6 +169,15 @@ struct OptionCard: View {
         case .url:
             if let u = item.url, let url = URL(string: u) { Link(u, destination: url).font(.callout) }
         }
+    }
+}
+
+/// Drag the file out of the popup into Finder or another app. Only for options that are files.
+struct DragOut: ViewModifier {
+    let path: String?
+    func body(content: Content) -> some View {
+        if let path { content.onDrag { NSItemProvider(contentsOf: URL(fileURLWithPath: path)) ?? NSItemProvider() } }
+        else { content }
     }
 }
 
@@ -244,7 +257,7 @@ struct SectionView: View {
             Text("None of these: make new options").font(.headline)
             Spacer()
             Image(systemName: on ? "checkmark.circle.fill" : "circle").font(.title3).foregroundStyle(on ? Color.accentColor : .secondary)
-        }.padding(12).selectable(on) { model.toggleRetry(section) }
+        }.allowsHitTesting(false).padding(12).selectable(on) { model.toggleRetry(section) }
     }
 }
 

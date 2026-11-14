@@ -154,6 +154,7 @@ struct AudioPlayerRow: View {
                         .gesture(DragGesture(minimumDistance: 0).onEnded { v in m.seek(min(1, max(0, v.location.x / g.size.width))) })
                 }.frame(height: 34)
                 Text("\(fmtTime(m.progress * m.duration)) / \(fmtTime(m.duration))").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                    .allowsHitTesting(false)
             }
         }.task { await m.loadBars() }
     }
