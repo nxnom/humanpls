@@ -238,10 +238,18 @@ struct OptionCard: View {
                 .task(id: item.crop) { if let p = item.path, let c = item.crop { thumb = await Cache.cell(p, c) } }
                 .sheet(isPresented: $zoom) { CellSheet(path: item.path ?? "", crop: item.crop, title: "\(item.key)  \(title)") }
         case .image:
-            Color.clear.frame(maxWidth: .infinity).frame(height: 170)
-                .overlay { if let thumb { Image(nsImage: thumb).resizable().scaledToFill() } }
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-                .allowsHitTesting(false)
+            // the whole image, never cropped: it fits inside the card and the card follows its shape
+            ZStack {
+                if let thumb {
+                    Image(nsImage: thumb).resizable().aspectRatio(contentMode: .fit).frame(maxWidth: .infinity, maxHeight: 240)
+                } else {
+                    Color.clear.frame(height: 150)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .background(Color.primary.opacity(0.06))          // a quiet plate behind images with transparency or a different shape
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .allowsHitTesting(false)
                 .overlay(alignment: .topTrailing) {
                     Button { zoom = true } label: {
                         Image(systemName: "arrow.up.left.and.arrow.down.right").foregroundStyle(.white).padding(7)

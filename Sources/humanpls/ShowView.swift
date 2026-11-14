@@ -90,7 +90,7 @@ struct Thumb: View {
         Color.black.opacity(0.25)
             .overlay {
                 ZStack {
-                    if let img { Image(nsImage: img).resizable().scaledToFill() }
+                    if let img { Image(nsImage: img).resizable().scaledToFit() }
                     switch item.kind {
                     case .video: Image(systemName: "play.fill").foregroundStyle(.white.opacity(0.9)).shadow(radius: 2)
                     case .audio: Image(systemName: "waveform").font(.title3).foregroundStyle(.secondary)
