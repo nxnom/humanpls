@@ -1,6 +1,6 @@
 cask "humanpls" do
-  version "0.1.0"
-  sha256 "8ff1e07c32eee2bd1fac6f20621c89b5d59ca97fd43d21873b040a0b963a91fd"
+  version "0.1.1"
+  sha256 "1a3c0d52a81aa0e3b215da814a5b0015b81560cd38b3ff90bfd4fa7528afb0f9"
 
   url "https://github.com/nxnom/humanpls/releases/download/v#{version}/humanpls-#{version}.dmg"
   name "humanpls"

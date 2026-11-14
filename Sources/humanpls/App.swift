@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import HumanplsCore
+import ApplicationServices
 
 // MARK: one popup window
 
@@ -81,7 +82,7 @@ final class Controller {
     /// Test mode (set by the CLI per request): answer at once with the default picks and open no window.
     static func autoAction(_ env: ClientEnv) -> FinishAction? {
         switch env.autoAnswer {
-        case "send": return .send
+        case "send", "deliver": return .send
         case "copy": return .copy
         case "cancel": return .cancel
         default: return nil
@@ -139,7 +140,7 @@ final class Controller {
             if wait { reply(Response(type: "answer", answer: text, status: "copied")) }
         case .send:
             if wait { reply(Response(type: "answer", answer: text, status: "sent")) }
-            else if !text.isEmpty, Controller.autoAction(env) == nil { Sender.deliver(text, env: env) { _ in } }
+            else if !text.isEmpty, Controller.autoAction(env) == nil || env.autoAnswer == "deliver" { Sender.deliver(text, env: env) { _ in } }
         }
     }
 
@@ -183,6 +184,11 @@ final class Server {
             _ = send(c, Response(type: "pong")); close(c)
         case "list":
             _ = send(c, Response(type: "jobs", jobs: HistoryStore().summaries())); close(c)
+        case "status":
+            Task { @MainActor in
+                _ = send(c, Response(type: "status", message: AXIsProcessTrusted() ? "granted" : "not granted"))
+                close(c)
+            }
         case "quit":
             _ = send(c, Response(type: "accepted")); close(c)
             DispatchQueue.main.async { NSApp.terminate(nil) }

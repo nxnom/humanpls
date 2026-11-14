@@ -26,6 +26,8 @@ case "quit":
     runQuit()
 case "selftest":
     MainActor.assumeIsolated { exit(SelfTest.run()) }
+case "doctor":
+    runDoctor()
 case "install-cli":
     runInstallCLI(Array(args.dropFirst()))
 default:

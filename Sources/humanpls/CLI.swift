@@ -1,7 +1,7 @@
 import Foundation
 import HumanplsCore
 
-let version = "0.1.0"
+let version = "0.1.1"
 
 let usage = """
 humanpls \(version): ask a human to pick between options, or just look at files. A native macOS popup.
@@ -13,7 +13,8 @@ Usage:
   humanpls reopen [ID]                           open the last popup again (or one from the history)
   humanpls list                                  recent popups
   humanpls quit                                  quit the menu bar app
-  humanpls install-cli [DIR]                     link `humanpls` into DIR (default ~/.local/bin)
+  humanpls install-cli [DIR]                     link `humanpls` into DIR (default /usr/local/bin, else ~/.local/bin)
+  humanpls doctor                                show how an answer would get back to your chat, and what is missing
   humanpls serve                                 run the app in this terminal (for development)
 
 OPTION is a file, "file::label", "text:Aung", "text:Aung::note". A leading * marks it recommended.
@@ -71,9 +72,19 @@ func callerEnv() -> ClientEnv {
 
 // MARK: talking to the app
 
+/// The real path of this program, with symlinks resolved (the `humanpls` command is a link into the app).
+func realExecutable() -> String {
+    URL(fileURLWithPath: Bundle.main.executablePath ?? CommandLine.arguments[0]).resolvingSymlinksInPath().path
+}
+
+/// The .app this program is inside, found by walking up from the real path. nil when run from a build folder.
 func appBundlePath() -> String? {
-    let p = Bundle.main.bundlePath
-    return p.hasSuffix(".app") ? p : nil
+    var url = URL(fileURLWithPath: realExecutable())
+    while url.path != "/" && !url.path.isEmpty {
+        if url.pathExtension == "app" { return url.path }
+        url.deleteLastPathComponent()
+    }
+    return nil
 }
 
 func startApp() {
@@ -90,7 +101,7 @@ func startApp() {
     } else {
         // development: run ourselves as the app, detached
         let p = Process()
-        p.executableURL = URL(fileURLWithPath: CommandLine.arguments[0].hasPrefix("/") ? CommandLine.arguments[0] : FileManager.default.currentDirectoryPath + "/" + CommandLine.arguments[0])
+        p.executableURL = URL(fileURLWithPath: realExecutable())
         p.arguments = ["serve"]
         p.standardOutput = FileHandle.nullDevice; p.standardError = FileHandle.nullDevice; p.standardInput = FileHandle.nullDevice
         try? p.run()
@@ -239,6 +250,38 @@ func runQuit() {
     guard let fd = UnixSocket.connect() else { print("not running"); return }
     _ = send(fd, Request(cmd: "quit")); close(fd)
     print("quit")
+}
+
+func runDoctor() {
+    let env = callerEnv()
+    print("humanpls \(version)")
+    print("program:   \(realExecutable())")
+    print("app:       \(appBundlePath() ?? "not inside an app (a build folder)")")
+    var running = false, trusted = "unknown"
+    if let fd = UnixSocket.connect() {
+        running = true
+        _ = send(fd, Request(cmd: "status"))
+        if let r = readResponse(LineReader(fd: fd)), let m = r.message { trusted = m }
+        close(fd)
+    }
+    print("app is running: \(running ? "yes" : "no (it starts by itself on the first popup)")")
+    print("")
+    print("Where the answer goes when you press Send (no --wait):")
+    if let pane = env.tmuxPane, let t = env.tmuxPath {
+        print("  tmux pane \(pane)  (tmux: \(t))")
+        print("  -> the answer is pasted into that pane and Enter is pressed. No permission needed.")
+    } else if let bid = env.bundleId {
+        print("  terminal app \(bid)")
+        print("  -> the app brings it to the front, pastes with Command-V and presses Enter.")
+        print("     This needs the Accessibility permission for humanpls (now: \(trusted)).")
+        print("     System Settings > Privacy & Security > Accessibility > turn humanpls on.")
+        if env.tmuxPane != nil { print("  (tmux is not on the PATH, so the tmux route cannot be used)") }
+    } else {
+        print("  no tmux and no terminal app found in this environment")
+        print("  -> the answer is only copied to the clipboard. Use --wait to get it as the command output.")
+    }
+    print("")
+    print("With --wait the answer is printed by the command and nothing is pasted. Agents should prefer --wait.")
 }
 
 func runInstallCLI(_ argv: [String]) {

@@ -4,7 +4,10 @@ import AppKit
 /// Used by the menu item "Install 'humanpls' command" and by `humanpls install-cli`.
 @MainActor
 enum CommandLineTool {
-    static var executable: String { Bundle.main.executablePath ?? CommandLine.arguments[0] }
+    /// The real program inside the app, never a link to it.
+    static var executable: String {
+        URL(fileURLWithPath: Bundle.main.executablePath ?? CommandLine.arguments[0]).resolvingSymlinksInPath().path
+    }
     /// /usr/local/bin is on every Mac's PATH. ~/.local/bin needs no password but is not on the PATH of a fresh Mac.
     static let systemDir = "/usr/local/bin"
     static var userDir: String { NSHomeDirectory() + "/.local/bin" }

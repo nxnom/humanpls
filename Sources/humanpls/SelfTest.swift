@@ -108,6 +108,25 @@ enum SelfTest {
             check("sidebar picks: each row keeps its own question", model.pickedItems.map { $0.question.id } == ["photo", "voice"])
         } catch { check("sidebar picks test could not build the job: \(error)", false) }
 
+        // Send: paste the answer into a tmux pane and press Enter (a real throwaway tmux server)
+        if let tmux = findInPath("tmux") {
+            let sock = NSTemporaryDirectory() + "hp-tmux-\(getpid()).sock"
+            func t(_ args: [String]) -> String {
+                let p = Process(); p.executableURL = URL(fileURLWithPath: tmux); p.arguments = ["-S", sock] + args
+                let out = Pipe(); p.standardOutput = out; p.standardError = FileHandle.nullDevice
+                try? p.run(); p.waitUntilExit()
+                return String(data: out.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+            }
+            _ = t(["new-session", "-d", "-s", "hp", "-x", "120", "-y", "24", "cat"])      // `cat` shows what it receives
+            let pane = t(["display-message", "-p", "-t", "hp", "#{pane_id}"]).trimmingCharacters(in: .whitespacesAndNewlines)
+            let ok = Sender.viaTmux("[test] picked: B \"Maung\"\nfeedback: slower", pane: pane, tmux: tmux, socket: sock)
+            usleep(400_000)
+            let shown = t(["capture-pane", "-p", "-t", pane])
+            check("send via tmux: the commands succeed", ok && !pane.isEmpty)
+            check("send via tmux: the whole answer, both lines, arrives in the pane", shown.contains("[test] picked: B \"Maung\"") && shown.contains("feedback: slower"))
+            _ = t(["kill-server"]); try? FileManager.default.removeItem(atPath: sock)
+        } else { print("skip send via tmux (tmux is not installed)") }
+
         // the command line tool link
         do {
             let dir = tmp + "/bin"
