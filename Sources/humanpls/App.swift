@@ -220,6 +220,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         do { server = try Server(controller: controller); server?.start() }
         catch { FileHandle.standardError.write(Data("humanpls: \(error)\n".utf8)); exit(1) }
 
+        NSApp.mainMenu = Self.buildMainMenu()
+
         status = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         if let b = status.button {
             b.image = NSImage(systemSymbolName: "person.crop.circle.badge.questionmark", accessibilityDescription: "humanpls")
@@ -227,6 +229,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let menu = NSMenu()
         menu.delegate = self
         status.menu = menu
+    }
+
+    /// The app has no Dock icon and no visible menu bar, but macOS only runs the standard text shortcuts
+    /// (select all, copy, paste, undo) from a main menu. This menu is never shown, it only makes the shortcuts work.
+    static func buildMainMenu() -> NSMenu {
+        let main = NSMenu()
+
+        let appItem = NSMenuItem(); main.addItem(appItem)
+        let app = NSMenu(); appItem.submenu = app
+        app.addItem(withTitle: "Quit humanpls", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+
+        let editItem = NSMenuItem(); main.addItem(editItem)
+        let edit = NSMenu(title: "Edit"); editItem.submenu = edit
+        edit.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
+        let redo = edit.addItem(withTitle: "Redo", action: Selector(("redo:")), keyEquivalent: "z")
+        redo.keyEquivalentModifierMask = [.command, .shift]
+        edit.addItem(.separator())
+        edit.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        edit.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        edit.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        edit.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+
+        let winItem = NSMenuItem(); main.addItem(winItem)
+        let win = NSMenu(title: "Window"); winItem.submenu = win
+        win.addItem(withTitle: "Minimize", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
+        win.addItem(withTitle: "Close", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+        NSApp.windowsMenu = win
+        return main
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {

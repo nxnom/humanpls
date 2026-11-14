@@ -84,6 +84,19 @@ enum SelfTest {
               (cellPath ?? "").range(of: #"/sheet-r1c2-\d{6}-\d{6}\.png$"#, options: .regularExpression) != nil)
         check("the sheet is not changed", FileManager.default.fileExists(atPath: sheet))
 
+        // the hidden main menu is what makes Command-A, C, V, X, Z work in text fields of an app without a Dock icon
+        let menu = AppDelegate.buildMainMenu()
+        let edit = menu.items.compactMap { $0.submenu }.first { $0.title == "Edit" }
+        func has(_ key: String, _ sel: Selector, _ mods: NSEvent.ModifierFlags = .command) -> Bool {
+            edit?.items.contains { $0.keyEquivalent == key && $0.action == sel && $0.keyEquivalentModifierMask == mods } ?? false
+        }
+        check("Edit menu: Select All is Command-A", has("a", #selector(NSText.selectAll(_:))))
+        check("Edit menu: Copy is Command-C", has("c", #selector(NSText.copy(_:))))
+        check("Edit menu: Paste is Command-V", has("v", #selector(NSText.paste(_:))))
+        check("Edit menu: Cut is Command-X", has("x", #selector(NSText.cut(_:))))
+        check("Edit menu: Undo is Command-Z", has("z", Selector(("undo:"))))
+        check("Edit menu: Redo is Shift-Command-Z", has("z", Selector(("redo:")), [.command, .shift]))
+
         try? FileManager.default.removeItem(atPath: tmp)
         print(failures.isEmpty ? "selftest passed" : "selftest FAILED: \(failures)")
         return failures.isEmpty ? 0 : 1
