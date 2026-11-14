@@ -97,6 +97,15 @@ enum SelfTest {
         check("Edit menu: Undo is Command-Z", has("z", Selector(("undo:"))))
         check("Edit menu: Redo is Shift-Command-Z", has("z", Selector(("redo:")), [.command, .shift]))
 
+        let mb = AppDelegate.menuBarImage()
+        check("menu bar icon is built in, is a template, and is 18 points tall", mb?.isTemplate == true && mb?.size.height == 18 && (mb?.size.width ?? 0) > 10)
+        check("menu bar icon is the logo (has transparent corners and an opaque body)", {
+            guard let tiff = mb?.tiffRepresentation, let rep = NSBitmapImageRep(data: tiff) else { return false }
+            let corner = rep.colorAt(x: 1, y: 1)?.alphaComponent ?? 1
+            let body = rep.colorAt(x: rep.pixelsWide / 2, y: rep.pixelsHigh - 6)?.alphaComponent ?? 0
+            return corner < 0.05 && body > 0.9
+        }())
+
         try? FileManager.default.removeItem(atPath: tmp)
         print(failures.isEmpty ? "selftest passed" : "selftest FAILED: \(failures)")
         return failures.isEmpty ? 0 : 1

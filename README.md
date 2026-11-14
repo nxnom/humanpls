@@ -24,6 +24,12 @@ humanpls reopen          # open the last popup again
 
 Files are read from the path the agent gave. Nothing is copied. The only new files are annotated images and cut-out cells: they are written to `~/Library/Application Support/humanpls/annotations/` and `.../crops/` and deleted after 14 days.
 
+## Logo
+
+A friendly dome-shaped body with a chunky white `h`, two little eyes and three coral sparks ("psst, human"). It was picked from AI logo sheets with humanpls itself (`pick --slice auto`) and rebuilt as clean vectors.
+
+`scripts/make-logo.py` builds everything from one geometry: `design/logo/humanpls-mark.svg` (color), `humanpls-mark-on-dark.svg`, `humanpls-mark-mono.svg` (one color, no sparks), `humanpls-app-icon.svg/.png`, `AppIcon.icns` (used by `build-app.sh`), and the menu bar icon, which is built into the binary (`Sources/humanpls/Assets.swift`) as a template image so macOS tints it for light and dark menu bars. It needs `rsvg-convert` (`brew install librsvg`).
+
 ## Install
 
 ```
@@ -40,7 +46,8 @@ Development: `swift build`, `swift test`, `./scripts/e2e.sh`, `./scripts/build-a
 Sources/HumanplsCore   job model, option parsing, answer text, history, marks, annotations, socket. No UI. Unit tested.
 Sources/humanpls       the app and the CLI (one binary: no arguments = menu bar app)
 Tests/                 unit tests for the core
-scripts/               install, build-app, e2e, icon, vendor
+scripts/               install, build-app, e2e, make-logo, gen-vendor
+design/logo/           the logo: SVG and PNG of the mark, a dark version, the app icon (AppIcon.icns)
 vendor/                marked and highlight.js, turned into Sources/humanpls/Vendor.swift by scripts/gen-vendor.py
 docs/PROTOCOL.md       the CLI, the socket protocol, the JSON options format and the answer text
 ```

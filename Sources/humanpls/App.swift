@@ -224,11 +224,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         status = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         if let b = status.button {
-            b.image = NSImage(systemSymbolName: "person.crop.circle.badge.questionmark", accessibilityDescription: "humanpls")
+            b.image = Self.menuBarImage()
+            b.toolTip = "humanpls"
         }
         let menu = NSMenu()
         menu.delegate = self
         status.menu = menu
+    }
+
+    /// The logo as a menu bar icon: black with transparency, so macOS tints it for light and dark bars.
+    static func menuBarImage() -> NSImage? {
+        guard let data = Data(base64Encoded: Assets.menuBarPNG), let img = NSImage(data: data) else {
+            return NSImage(systemSymbolName: "person.crop.circle.badge.questionmark", accessibilityDescription: "humanpls")
+        }
+        img.size = NSSize(width: 18 * Assets.menuBarAspect, height: 18)
+        img.isTemplate = true
+        img.accessibilityDescription = "humanpls"
+        return img
     }
 
     /// The app has no Dock icon and no visible menu bar, but macOS only runs the standard text shortcuts
