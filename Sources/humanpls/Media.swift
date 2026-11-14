@@ -5,6 +5,7 @@ import AVFoundation
 import PDFKit
 import WebKit
 import Combine
+import QuickLookThumbnailing
 
 // MARK: caches (decode once, never in a view body)
 
@@ -298,6 +299,65 @@ struct WebRep: NSViewRepresentable {
         return w
     }
     func updateNSView(_ v: WKWebView, context: Context) {}
+}
+
+/// A file that was moved or deleted after the agent made the popup. No crash, a clear note.
+struct MissingFile: View {
+    let path: String
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange).font(.title3)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("File not found").font(.callout.weight(.medium))
+                Text(path).font(.caption).foregroundStyle(.secondary).textSelection(.enabled).lineLimit(2)
+            }
+            Spacer()
+        }.padding(12).frame(maxWidth: .infinity).background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+    }
+}
+
+func fileExists(_ path: String?) -> Bool {
+    guard let path else { return true }          // inline options have no file
+    return FileManager.default.fileExists(atPath: path)
+}
+
+/// Any file we have no special view for: Quick Look thumbnail (or the file icon), type, size, Open and Reveal.
+struct FileInfoView: View {
+    let path: String
+    var big = false
+    @State var thumb: NSImage? = nil
+
+    var url: URL { URL(fileURLWithPath: path) }
+    var typeText: String {
+        (try? url.resourceValues(forKeys: [.localizedTypeDescriptionKey]))?.localizedTypeDescription ?? "File"
+    }
+    var sizeText: String {
+        guard let s = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize else { return "" }
+        return ByteCountFormatter.string(fromByteCount: Int64(s), countStyle: .file)
+    }
+
+    var body: some View {
+        HStack(spacing: 18) {
+            Image(nsImage: thumb ?? NSWorkspace.shared.icon(forFile: path)).resizable().scaledToFit()
+                .frame(width: big ? 240 : 84, height: big ? 240 : 84)
+            VStack(alignment: .leading, spacing: 6) {
+                if big { Text(url.lastPathComponent).font(.title3.weight(.semibold)) }
+                Text(typeText).font(.callout)
+                Text(sizeText).font(.caption).foregroundStyle(.secondary)
+                HStack {
+                    Button("Open") { NSWorkspace.shared.open(url) }
+                    Button("Reveal in Finder") { NSWorkspace.shared.activateFileViewerSelecting([url]) }
+                }.controlSize(.small)
+            }
+            if big { Spacer() }
+        }
+        .frame(maxWidth: .infinity, maxHeight: big ? .infinity : nil, alignment: .leading).padding(big ? 40 : 0)
+        .task(id: path) {
+            let size = big ? 480.0 : 168.0
+            let req = QLThumbnailGenerator.Request(fileAt: url, size: CGSize(width: size, height: size), scale: 2, representationTypes: .thumbnail)
+            if let rep = try? await QLThumbnailGenerator.shared.generateBestRepresentation(for: req) { thumb = rep.nsImage }
+        }
+    }
 }
 
 struct Badge: View {

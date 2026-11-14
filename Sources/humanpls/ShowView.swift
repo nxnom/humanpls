@@ -42,6 +42,7 @@ struct Thumb: View {
                     case .video: Image(systemName: "play.fill").foregroundStyle(.white.opacity(0.9)).shadow(radius: 2)
                     case .audio: Image(systemName: "waveform").font(.title3).foregroundStyle(.secondary)
                     case .markdown, .text, .code, .html, .url: Image(systemName: "doc.text").font(.title3).foregroundStyle(.secondary)
+                    case .file: Image(systemName: "doc").font(.title3).foregroundStyle(.secondary)
                     case .pdf: Image(systemName: "doc.richtext").font(.title3).foregroundStyle(.secondary)
                     default: EmptyView()
                     }
@@ -149,7 +150,12 @@ struct ShowRoot: View {
     }
 
     @ViewBuilder func viewer(_ it: Item) -> some View {
+        if !fileExists(it.path) { MissingFile(path: it.path ?? "").padding(30).frame(maxWidth: .infinity, maxHeight: .infinity) } else { kindViewer(it) }
+    }
+
+    @ViewBuilder func kindViewer(_ it: Item) -> some View {
         switch it.kind {
+        case .file: FileInfoView(path: it.path ?? "", big: true)
         case .image: ZoomImage(path: it.path ?? "")
         case .video: VideoViewer(path: it.path ?? "")
         case .audio: AudioViewer(path: it.path ?? "")

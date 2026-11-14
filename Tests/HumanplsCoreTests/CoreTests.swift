@@ -76,8 +76,6 @@ final class CoreTests: XCTestCase {
         XCTAssertThrowsError(try builder().pick(a), "no options")
         a.positional = ["missing.png"]
         XCTAssertThrowsError(try builder().pick(a), "missing file")
-        a.positional = ["z.bin"]
-        XCTAssertThrowsError(try builder().pick(a), "unsupported type")
         a.positional = ["a.png"]; a.recommend = ["Q"]
         XCTAssertThrowsError(try builder().pick(a), "recommend a key that does not exist")
         a.recommend = []; a.id = "bad id!"
@@ -114,9 +112,21 @@ final class CoreTests: XCTestCase {
     func testShowExpandsFolders() throws {
         let job = try builder().show(id: nil, title: nil, paths: ["."])
         let names = job.sections[0].items.compactMap { $0.fileName }
-        XCTAssertEqual(names.sorted(), ["a.png", "b.wav", "c.mp4", "notes.md", "x.swift"], "z.bin is skipped")
+        XCTAssertEqual(names.sorted(), ["a.png", "b.wav", "c.mp4", "notes.md", "x.swift", "z.bin"], "every file is shown")
         XCTAssertEqual(job.mode, .show)
         XCTAssertThrowsError(try builder().show(id: nil, title: nil, paths: ["nope"]))
+    }
+
+    func testUnknownFilesGetAKind() throws {
+        try "KEY=1\nOTHER=2\n".write(toFile: tmp + "/.env.sample", atomically: true, encoding: .utf8)
+        try Data([0x50, 0x4B, 0x03, 0x04, 0x00, 0x00, 0xFF]).write(to: URL(fileURLWithPath: tmp + "/archive.zip"))
+        XCTAssertEqual(Kinds.detect(path: tmp + "/.env.sample").0, .text, "unknown extension but UTF-8 text")
+        XCTAssertEqual(Kinds.detect(path: tmp + "/archive.zip").0, .file, "binary becomes a generic file")
+        XCTAssertEqual(Kinds.detect(path: tmp + "/z.bin").0, .file)
+        var a = JobBuilder.PickArgs(); a.id = "t"; a.positional = ["archive.zip::Backup"]
+        let item = try builder().pick(a).sections[0].items[0]
+        XCTAssertEqual(item.kind, .file)
+        XCTAssertEqual(item.label, "Backup")
     }
 
     // MARK: answer text

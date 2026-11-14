@@ -12,6 +12,7 @@ public enum ItemKind: String, Codable, Sendable {
     case html
     case pdf
     case url
+    case file      // anything else: shown with a Quick Look thumbnail, Open and Reveal
 }
 
 public struct Item: Codable, Identifiable, Hashable, Sendable {

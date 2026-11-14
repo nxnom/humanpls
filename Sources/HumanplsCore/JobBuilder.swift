@@ -19,6 +19,7 @@ public enum Kinds {
         "hpp": "cpp", "cs": "csharp", "css": "css", "xml": "xml", "sql": "sql", "php": "php", "lua": "lua", "diff": "diff",
     ]
 
+    /// Known kinds only (by extension). nil = not one of the special types.
     public static func kind(ofPath path: String) -> (ItemKind, String?)? {
         let ext = (path as NSString).pathExtension.lowercased()
         if image.contains(ext) { return (.image, nil) }
@@ -30,6 +31,18 @@ public enum Kinds {
         if text.contains(ext) { return (.text, nil) }
         if let lang = code[ext] { return (.code, lang) }
         return nil
+    }
+
+    /// Any existing file gets a kind. Unknown extensions: text if the start of the file is UTF-8 text, else a generic file.
+    public static func detect(path: String) -> (ItemKind, String?) {
+        if let k = kind(ofPath: path) { return k }
+        if let h = FileHandle(forReadingAtPath: path) {
+            defer { try? h.close() }
+            let head = h.readData(ofLength: 4096)
+            if !head.isEmpty, !head.contains(0), String(data: head, encoding: .utf8) != nil { return (.text, nil) }
+            if head.isEmpty { return (.text, nil) }
+        }
+        return (.file, nil)
     }
 }
 
@@ -79,9 +92,7 @@ public struct JobBuilder {
         guard FileManager.default.fileExists(atPath: p, isDirectory: &isDir), !isDir.boolValue else {
             throw JobError("option \(key): \(p) is not a file")
         }
-        guard let (kind, lang) = Kinds.kind(ofPath: p) else {
-            throw JobError("option \(key): unsupported file type: \((p as NSString).lastPathComponent)")
-        }
+        let (kind, lang) = Kinds.detect(path: p)
         return Item(key: key, kind: kind, label: label?.isEmpty == true ? nil : label, note: note, path: p, language: lang, recommended: recommended)
     }
 
@@ -243,15 +254,15 @@ public struct JobBuilder {
                 let names = (try? FileManager.default.contentsOfDirectory(atPath: r)) ?? []
                 files += names.filter { !$0.hasPrefix(".") }.sorted { $0.localizedStandardCompare($1) == .orderedAscending }
                     .map { (r as NSString).appendingPathComponent($0) }
-                    .filter { Kinds.kind(ofPath: $0) != nil }
+                    .filter { var d: ObjCBool = false; return FileManager.default.fileExists(atPath: $0, isDirectory: &d) && !d.boolValue }
             } else {
                 files.append(r)
             }
         }
-        guard !files.isEmpty else { throw JobError("nothing to show: give files or a folder with images, video, audio, text, markdown or code") }
+        guard !files.isEmpty else { throw JobError("nothing to show: give files or a folder that has files") }
         let ks = Self.keys(files.count)
-        let items: [Item] = try zip(files, ks).map { f, k in
-            guard let (kind, lang) = Kinds.kind(ofPath: f) else { throw JobError("unsupported file type: \((f as NSString).lastPathComponent)") }
+        let items: [Item] = zip(files, ks).map { f, k in
+            let (kind, lang) = Kinds.detect(path: f)
             return Item(key: k, kind: kind, path: f, language: lang)
         }
         let jid = id ?? "show-\(Int(Date().timeIntervalSince1970))"

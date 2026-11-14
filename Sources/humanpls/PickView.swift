@@ -129,7 +129,13 @@ struct OptionCard: View {
     }
 
     @ViewBuilder var content: some View {
+        if !fileExists(item.path) { MissingFile(path: item.path ?? "") } else { kindContent }
+    }
+
+    @ViewBuilder var kindContent: some View {
         switch item.kind {
+        case .file:
+            FileInfoView(path: item.path ?? "")
         case .chip:
             if item.recommended { Badge().allowsHitTesting(false) }
         case .text:
