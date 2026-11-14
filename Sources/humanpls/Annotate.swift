@@ -195,6 +195,7 @@ final class CanvasView: NSView, NSTextFieldDelegate {
         switch tool {
         case .hand:
             guard let sv = enclosingScrollView else { return }
+            (sv as? FitScrollView)?.userInteracted = true
             let clip = sv.contentView
             var o = clip.bounds.origin
             o.x -= e.deltaX / sv.magnification; o.y -= e.deltaY / sv.magnification

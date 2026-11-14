@@ -217,14 +217,31 @@ final class CenteringClipView: NSClipView {
 final class FitScrollView: NSScrollView {
     var imgSize = NSSize.zero
     var fitted = false
+    /// Once the person zooms or moves the image, we stop refitting it when the pane changes size.
+    var userInteracted = false
+    private var lastFitBounds = NSSize.zero
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        for name in [NSScrollView.willStartLiveMagnifyNotification, NSScrollView.willStartLiveScrollNotification] {
+            NotificationCenter.default.addObserver(self, selector: #selector(userStarted), name: name, object: self)
+        }
+    }
+    @objc private func userStarted() { userInteracted = true }
+
     override func layout() {
         super.layout()
-        if !fitted, bounds.width > 0, imgSize.width > 0 { fitted = true; fit() }
+        // Fit to the pane. The pane can change size while the window is still laying out (two panes side by side,
+        // a split view), so fit again whenever its size changes, until the person takes over.
+        guard bounds.width > 0, imgSize.width > 0, !userInteracted, bounds.size != lastFitBounds else { return }
+        lastFitBounds = bounds.size
+        fitted = true
+        fit()
     }
     func fit() { magnify(toFit: NSRect(origin: .zero, size: imgSize)) }
     func toggleFit() {
-        if abs(magnification - 1) < 0.01 { fit() }
-        else { setMagnification(1, centeredAt: NSPoint(x: imgSize.width / 2, y: imgSize.height / 2)) }
+        if abs(magnification - 1) < 0.01 { userInteracted = false; fit() }
+        else { userInteracted = true; setMagnification(1, centeredAt: NSPoint(x: imgSize.width / 2, y: imgSize.height / 2)) }
     }
     override func mouseDown(with e: NSEvent) {
         if e.clickCount == 2 { toggleFit() } else { super.mouseDown(with: e) }
