@@ -45,6 +45,9 @@ check "history lists the 6 popups that opened" "6" "$count"
 out=$(HUMANPLS_AUTOANSWER=send "$BIN" reopen narrator)
 check "reopen from history" "reopened narrator" "$out"
 
+"$BIN" selftest >/dev/null 2>&1; code=$?
+check "annotation export self-test (draws shapes, reads the PNG pixels back)" "0" "$code"
+
 "$BIN" quit >/dev/null 2>&1
 sleep 0.5
 if [ -S "$HUMANPLS_SOCKET" ]; then fail=$((fail+1)); echo "FAIL socket removed after quit"; else pass=$((pass+1)); echo "ok   socket removed after quit"; fi

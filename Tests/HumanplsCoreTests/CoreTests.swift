@@ -197,8 +197,8 @@ final class CoreTests: XCTestCase {
 
     func testAnnotationUndoRedo() {
         var set = AnnotationSet()
-        set.add(Shape(kind: .rect, points: [Pt(0, 0), Pt(50, 40)]))
-        set.add(Shape(kind: .arrow, points: [Pt(5, 5), Pt(90, 60)]))
+        set.add(Drawing(kind: .rect, points: [Pt(0, 0), Pt(50, 40)]))
+        set.add(Drawing(kind: .arrow, points: [Pt(5, 5), Pt(90, 60)]))
         XCTAssertEqual(set.shapes.count, 2)
         set.undo()
         XCTAssertEqual(set.shapes.map { $0.kind }, [.rect])
@@ -206,7 +206,7 @@ final class CoreTests: XCTestCase {
         set.redo()
         XCTAssertEqual(set.shapes.count, 2)
         set.undo()
-        set.add(Shape(kind: .pen, points: [Pt(0, 0), Pt(3, 3), Pt(8, 2)]))
+        set.add(Drawing(kind: .pen, points: [Pt(0, 0), Pt(3, 3), Pt(8, 2)]))
         XCTAssertFalse(set.canRedo, "a new shape clears redo")
         set.clear()
         XCTAssertTrue(set.isEmpty)
@@ -214,17 +214,17 @@ final class CoreTests: XCTestCase {
 
     func testAnnotationIgnoresStrayClicks() {
         var set = AnnotationSet()
-        set.add(Shape(kind: .rect, points: [Pt(10, 10), Pt(11, 11)]))
-        set.add(Shape(kind: .pen, points: [Pt(1, 1)]))
-        set.add(Shape(kind: .text, points: [Pt(1, 1)], text: "   "))
-        set.add(Shape(kind: .text, points: [Pt(1, 1)], text: "too dark"))
+        set.add(Drawing(kind: .rect, points: [Pt(10, 10), Pt(11, 11)]))
+        set.add(Drawing(kind: .pen, points: [Pt(1, 1)]))
+        set.add(Drawing(kind: .text, points: [Pt(1, 1)], text: "   "))
+        set.add(Drawing(kind: .text, points: [Pt(1, 1)], text: "too dark"))
         XCTAssertEqual(set.shapes.count, 1)
         XCTAssertEqual(set.shapes[0].text, "too dark")
     }
 
     func testAnnotationRoundTripsAsJSON() throws {
         var set = AnnotationSet()
-        set.add(Shape(kind: .arrow, points: [Pt(1, 2), Pt(30, 40)], color: "#0A84FF"))
+        set.add(Drawing(kind: .arrow, points: [Pt(1, 2), Pt(30, 40)], color: "#0A84FF"))
         let data = try Coding.encoder().encode(set)
         let back = try Coding.decoder().decode(AnnotationSet.self, from: data)
         XCTAssertEqual(back.shapes.first?.points.last, Pt(30, 40))
@@ -274,7 +274,9 @@ final class CoreTests: XCTestCase {
         var p = Picks(job: job)
         p.chosen["pl"] = ["A"]
         p.annotated["pl"] = ["A": "/s/a-annotated.png"]
-        XCTAssertEqual(AnswerText.make(job: job, picks: p), "[pl] picked: A \"Wide\" (a.png) [annotated: /s/a-annotated.png]")
+        XCTAssertEqual(AnswerText.make(job: job, picks: p), "[pl] picked: A \"Wide\" (a.png) | annotated: A \"Wide\" /s/a-annotated.png")
+        p.chosen["pl"] = []
+        XCTAssertEqual(AnswerText.make(job: job, picks: p), "[pl] no pick | annotated: A \"Wide\" /s/a-annotated.png", "annotation counts even without a pick")
     }
 
     // MARK: history

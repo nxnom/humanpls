@@ -28,7 +28,7 @@ public enum AnswerText {
             if many {
                 lines.append("\(s.heading): \(body)")
             } else {
-                lines.append("[\(job.id)] \(body.hasPrefix("none of these") || body == "no pick" ? body : "picked: " + body)")
+                lines.append("[\(job.id)] \(body.hasPrefix("none of these") || body.hasPrefix("no pick") ? body : "picked: " + body)")
             }
         }
         if many { lines.insert("[\(job.id)]", at: 0) }
@@ -47,20 +47,24 @@ public enum AnswerText {
             if items.isEmpty {
                 out = "no pick"
             } else {
-                out = items.map { itemText($0, annotated: picks.annotated[s.id]?[$0.key]) }.joined(separator: "; ")
+                out = items.map(itemText).joined(separator: "; ")
             }
         }
         if let n = picks.sectionNotes[s.id]?.trimmingCharacters(in: .whitespacesAndNewlines), !n.isEmpty {
             out += " | note: \(n)"
         }
+        // annotated images are part of the answer even when the option was not picked
+        let marked = s.items.compactMap { i in picks.annotated[s.id]?[i.key].map { (i, $0) } }
+        if !marked.isEmpty {
+            out += " | annotated: " + marked.map { "\($0.key)\($0.answerName.map { " \"\($0)\"" } ?? "") \($1)" }.joined(separator: "; ")
+        }
         return out
     }
 
-    static func itemText(_ i: Item, annotated: String?) -> String {
+    static func itemText(_ i: Item) -> String {
         var t = i.key
         if let n = i.answerName { t += " \"\(n)\"" }
         if let f = i.fileName, f != i.answerName { t += " (\(f))" }
-        if let a = annotated { t += " [annotated: \(a)]" }
         return t
     }
 }

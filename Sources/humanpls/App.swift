@@ -217,6 +217,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func applicationDidFinishLaunching(_ n: Notification) {
         if UnixSocket.connect() != nil { exit(0) }        // already running
+        AnnotationStore.prune()
         do { server = try Server(controller: controller); server?.start() }
         catch { FileHandle.standardError.write(Data("humanpls: \(error)\n".utf8)); exit(1) }
 

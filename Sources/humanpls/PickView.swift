@@ -13,6 +13,7 @@ final class PickModel: ObservableObject {
     @Published var picks: Picks { didSet { override = nil } }
     @Published var override: String? = nil
     @Published var showPreview = false
+    let store = AnnotationStore()
     var onFinish: (FinishAction, String, Picks) -> Void = { _, _, _ in }
 
     init(job: Job, picks: Picks? = nil, waiting: Bool) {
@@ -49,7 +50,21 @@ final class PickModel: ObservableObject {
     }
     var feedback: Binding<String> { Binding(get: { self.picks.feedback }, set: { self.picks.feedback = $0 }) }
 
-    func finish(_ a: FinishAction) { onFinish(a, text, picks) }
+    /// Annotated images are written to PNG files when the answer is sent.
+    func exportAnnotations() {
+        for q in job.sections {
+            for it in q.items {
+                if it.kind == .image, let p = it.path, store.has(p), let out = store.export(p) {
+                    picks.annotated[q.id, default: [:]][it.key] = out
+                }
+            }
+        }
+    }
+
+    func finish(_ a: FinishAction) {
+        if a != .cancel { exportAnnotations() }
+        onFinish(a, text, picks)
+    }
 }
 
 // MARK: style
@@ -156,7 +171,7 @@ struct OptionCard: View {
                     }.buttonStyle(.plain).padding(8)
                 }
                 .task { if let p = item.path { thumb = await Cache.thumb(p) } }
-                .sheet(isPresented: $zoom) { ImageSheet(path: item.path ?? "", title: "\(item.key)  \(title)") }
+                .sheet(isPresented: $zoom) { ImageSheet(path: item.path ?? "", title: "\(item.key)  \(title)", store: model.store) }
         case .video:
             Color.black.frame(maxWidth: .infinity).frame(height: 200)
                 .overlay { if let thumb { Image(nsImage: thumb).resizable().scaledToFit() } }
@@ -189,16 +204,18 @@ struct DragOut: ViewModifier {
 
 struct ImageSheet: View {
     let path: String; let title: String
+    @ObservedObject var store: AnnotationStore
     @Environment(\.dismiss) var dismiss
     var body: some View {
         VStack(spacing: 0) {
             HStack { Text(title).font(.headline); Spacer()
-                Text("Pinch to zoom · drag to move · double-click: fit / 100%").font(.caption).foregroundStyle(.secondary)
+                Text("Pinch to zoom · double-click: fit / 100%").font(.caption).foregroundStyle(.secondary)
                 InfoButton(path: path)
                 Button("Done") { dismiss() }.keyboardShortcut(.escape, modifiers: []) }.padding(10)
             Divider()
-            ZoomImage(path: path)
-        }.frame(minWidth: 760, minHeight: 540)
+            AnnotateBar(store: store, path: path)
+            AnnotatableImage(path: path, store: store)
+        }.frame(minWidth: 800, minHeight: 580)
     }
 }
 

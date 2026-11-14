@@ -9,7 +9,8 @@ final class ShowModel: ObservableObject {
     let waiting: Bool
     var items: [Item] { job.sections.first?.items ?? [] }
     @Published var selection: String?
-    @Published var message = ""
+    @Published var state = ShowState()
+    let store = AnnotationStore()
     var onFinish: (FinishAction, String) -> Void = { _, _ in }
 
     init(job: Job, waiting: Bool) {
@@ -21,13 +22,16 @@ final class ShowModel: ObservableObject {
     var index: Int { items.firstIndex { $0.key == current?.key } ?? 0 }
     func move(_ d: Int) { guard !items.isEmpty else { return }; selection = items[min(items.count - 1, max(0, index + d))].key }
 
-    var text: String {
-        var lines = ["[\(job.id)]"]
-        let m = message.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !m.isEmpty { lines.append(m) }
-        return lines.joined(separator: "\n")
+    var text: String { ShowAnswer.make(job: job, state: state) }
+
+    func finish(_ a: FinishAction) {
+        if a != .cancel {
+            for it in items where it.kind == .image {
+                if let p = it.path, store.has(p), let out = store.export(p) { state.annotated[it.key] = out }
+            }
+        }
+        onFinish(a, text)
     }
-    func finish(_ a: FinishAction) { onFinish(a, text) }
 }
 
 struct Thumb: View {
@@ -143,7 +147,7 @@ struct ShowRoot: View {
                     Button("Reveal in Finder") { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: p)]) }
                     Button("Copy path") { Sender.copy(p) }
                 }
-                TextField("Message (optional)", text: $model.message).textFieldStyle(.roundedBorder).frame(maxWidth: 260)
+                TextField("Message (optional)", text: $model.state.message).textFieldStyle(.roundedBorder).frame(maxWidth: 260)
                 Button(model.waiting ? "Send answer" : "Send") { model.finish(.send) }
                     .keyboardShortcut(.return, modifiers: .command).buttonStyle(.borderedProminent)
             }.padding(10)
@@ -157,7 +161,11 @@ struct ShowRoot: View {
     @ViewBuilder func kindViewer(_ it: Item) -> some View {
         switch it.kind {
         case .file: FileInfoView(path: it.path ?? "", big: true)
-        case .image: ZoomImage(path: it.path ?? "")
+        case .image:
+            VStack(spacing: 0) {
+                AnnotateBar(store: model.store, path: it.path ?? "")
+                AnnotatableImage(path: it.path ?? "", store: model.store)
+            }
         case .video: VideoViewer(path: it.path ?? "")
         case .audio: AudioViewer(path: it.path ?? "")
         case .pdf: PDFRep(path: it.path ?? "")
@@ -169,7 +177,7 @@ struct ShowRoot: View {
 
     func hint(_ it: Item) -> String {
         switch it.kind {
-        case .image: return "Pinch or scroll to zoom  ·  drag to move  ·  double-click: fit / 100%"
+        case .image: return "Pinch or scroll to zoom  ·  pick the hand to move  ·  double-click: fit / 100%"
         case .video: return "J ◀◀   K pause   L ▶▶   (press again for faster)   ·   ← → one frame   ·   Space play"
         case .audio: return "Click the waveform to seek"
         default: return ""
