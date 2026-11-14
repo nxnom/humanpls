@@ -4,6 +4,13 @@ import HumanplsCore
 
 enum FinishAction { case send, copy, cancel }
 
+/// One picked option. The id includes the question, because every question has its own option "A", "B", ...
+struct PickedEntry: Identifiable {
+    let question: Question
+    let item: Item
+    var id: String { "\(question.id)/\(item.key)" }
+}
+
 // MARK: model
 
 @MainActor
@@ -44,8 +51,8 @@ final class PickModel: ObservableObject {
         focus[q.id] = q.items[min(q.items.count - 1, max(0, i + d))].key
     }
     /// Everything picked so far, for the sidebar.
-    var pickedItems: [(question: Question, item: Item)] {
-        job.sections.flatMap { q in q.items.filter { chosen(q).contains($0.key) }.map { (q, $0) } }
+    var pickedItems: [PickedEntry] {
+        job.sections.flatMap { q in q.items.filter { chosen(q).contains($0.key) }.map { PickedEntry(question: q, item: $0) } }
     }
 
     func chosen(_ s: Question) -> Set<String> { picks.chosen[s.id] ?? [] }
@@ -212,7 +219,9 @@ struct OptionCard: View {
             Group {
                 if item.kind != .chip { KeyCap(t: item.key) }
                 if item.kind == .chip {
-                    Text(item.text ?? "").font(.system(size: 26, weight: .semibold, design: .rounded)).lineLimit(2)
+                    let n = (item.text ?? "").count      // a name is big, a sentence is smaller so it is not cut off
+                    Text(item.text ?? "").font(.system(size: n <= 14 ? 26 : (n <= 30 ? 20 : 17), weight: .semibold, design: .rounded))
+                        .lineLimit(4).fixedSize(horizontal: false, vertical: true)
                 } else {
                     Text(title).font(.headline).lineLimit(1)
                 }
@@ -375,7 +384,10 @@ struct SectionView: View {
 
     var gridColumns: [GridItem] {
         let kinds = Set(section.items.map { $0.kind })
-        if kinds.isSubset(of: [.chip]) { return [GridItem(.adaptive(minimum: 200), spacing: 12)] }
+        if kinds.isSubset(of: [.chip]) {
+            let longest = section.items.map { ($0.text ?? "").count }.max() ?? 0
+            return [GridItem(.adaptive(minimum: longest > 14 ? 270 : 200), spacing: 12)]
+        }
         if kinds.isSubset(of: [.image, .video]) { return [GridItem(.adaptive(minimum: 260), spacing: 14)] }
         return [GridItem(.flexible())]
     }

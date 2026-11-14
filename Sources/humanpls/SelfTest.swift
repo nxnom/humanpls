@@ -97,6 +97,17 @@ enum SelfTest {
         check("Edit menu: Undo is Command-Z", has("z", Selector(("undo:"))))
         check("Edit menu: Redo is Shift-Command-Z", has("z", Selector(("redo:")), [.command, .shift]))
 
+        // the sidebar basket: two questions can both pick their option "B"; the rows must not be mixed up
+        do {
+            var args = JobBuilder.PickArgs(); args.id = "ids"
+            args.sections = [["Photo", "text:One", "*text:Two"], ["Voice", "text:Three", "*text:Four"]]
+            let job = try JobBuilder(cwd: tmp).pick(args)
+            let model = PickModel(job: job, waiting: false)
+            let ids = model.pickedItems.map { $0.id }
+            check("sidebar picks: same option letter in two questions gives two different row ids", ids.count == 2 && Set(ids).count == 2)
+            check("sidebar picks: each row keeps its own question", model.pickedItems.map { $0.question.id } == ["photo", "voice"])
+        } catch { check("sidebar picks test could not build the job: \(error)", false) }
+
         let mb = AppDelegate.menuBarImage()
         check("menu bar icon is built in, is a template, and is 18 points tall", mb?.isTemplate == true && mb?.size.height == 18 && (mb?.size.width ?? 0) > 10)
         check("menu bar icon is the logo (has transparent corners and an opaque body)", {

@@ -168,7 +168,7 @@ struct Sidebar: View {
                     if picked.isEmpty {
                         Text("Nothing picked yet").font(.caption).foregroundStyle(.secondary)
                     }
-                    ForEach(picked, id: \.item.id) { entry in
+                    ForEach(picked) { entry in
                         HStack(spacing: 8) {
                             Thumb(item: entry.item).frame(width: 30, height: 30).clipShape(RoundedRectangle(cornerRadius: 5))
                             VStack(alignment: .leading, spacing: 0) {
