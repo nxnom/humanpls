@@ -17,6 +17,7 @@ fi
 APP="build/humanpls.app"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+touch build/.metadata_never_index      # keep Spotlight from listing this build copy next to the installed app
 cp "$BIN" "$APP/Contents/MacOS/humanpls"
 cp design/logo/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"     # made by scripts/make-logo.py
 cat > "$APP/Contents/Info.plist" <<PLIST
