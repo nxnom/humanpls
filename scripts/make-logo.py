@@ -62,9 +62,37 @@ mono_inner = (f'<mask id="m"><rect width="1000" height="1000" fill="#fff"/>{rect
               + "".join(rect(e, "#fff") for e in EYES) + f'</mask><path d="{BODY}" fill="#000" mask="url(#m)"/>')
 write("humanpls-mark-mono.svg", svg(mono_inner, box=f"{BX} {BY} {BW} {BH}"))
 
-# --- app icon: macOS rounded square (824 of 1024), cream, with the mark ----------------------
-icon_inner = (f'<rect x="100" y="100" width="824" height="824" rx="186" fill="{CREAM}"/>'
-              f'<g transform="translate(224 174) scale(0.64)">{mark(INK, WHITE, INK, CORAL)}</g>')
+# --- app icon: macOS rounded square (824 of 1024) with the mark ------------------------------
+def app_icon(bg, body, h, eyes, spark, defs=""):
+    return (f'{defs}<rect x="100" y="100" width="824" height="824" rx="186" {bg}/>'
+            f'<g transform="translate(224 174) scale(0.64)">{mark(body, h, eyes, spark)}</g>')
+
+def gradient(id_, c1, c2):
+    return f'<defs><linearGradient id="{id_}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="{c1}"/><stop offset="1" stop-color="{c2}"/></linearGradient></defs>'
+
+# the chosen icon (see ICON_OPTIONS below)
+CHOSEN = "sunset"
+ICON_OPTIONS = {
+    "black":    dict(bg='fill="#111110"', body="#F5F5F4", h=INK, eyes="#F5F5F4", spark=CORAL),
+    "coral":    dict(bg=f'fill="{CORAL}"', body=INK, h=WHITE, eyes=INK, spark=WHITE),
+    "orange":   dict(bg='fill="#FF8A1F"', body=INK, h=WHITE, eyes=INK, spark=WHITE),
+    "blue":     dict(bg='fill="#5B9BFF"', body=INK, h=WHITE, eyes=INK, spark=WHITE),
+    "yellow":   dict(bg='fill="#FFD23F"', body=INK, h=WHITE, eyes=INK, spark=CORAL),
+    "white":    dict(bg='fill="#FFFFFF" stroke="#E4E4E8" stroke-width="3"', body=INK, h=WHITE, eyes=INK, spark=CORAL),
+    "sunset":   dict(bg='fill="url(#g)"', body=INK, h=WHITE, eyes=INK, spark=WHITE, defs=gradient("g", "#FF5E62", "#FF9966")),
+    "graphite": dict(bg='fill="url(#g)"', body="#F5F5F4", h="#2A2A2E", eyes="#F5F5F4", spark=CORAL, defs=gradient("g", "#3A3A40", "#17171A")),
+}
+
+if "--options" in sys.argv:        # python3 scripts/make-logo.py --options DIR  -> one PNG per background, to choose from
+    od = pathlib.Path(sys.argv[sys.argv.index("--options") + 1]); od.mkdir(parents=True, exist_ok=True)
+    for name, o in ICON_OPTIONS.items():
+        svg_path = od / f"app-icon-{name}.svg"
+        svg_path.write_text(svg(app_icon(**o), box="0 0 1024 1024"), encoding="utf-8")
+        subprocess.run(["rsvg-convert", "-w", "512", "-h", "512", str(svg_path), "-o", str(od / f"app-icon-{name}.png")], check=True)
+        svg_path.unlink()
+    print("wrote options to", od); sys.exit(0)
+
+icon_inner = app_icon(**ICON_OPTIONS[CHOSEN])
 write("humanpls-app-icon.svg", svg(icon_inner, box="0 0 1024 1024"))
 png("humanpls-app-icon.svg", "humanpls-app-icon.png", 1024)
 
