@@ -22,7 +22,9 @@ struct Sidebar: View {
                             HStack {
                                 Text(s.heading).lineLimit(1)
                                 Spacer()
-                                if model.answered(s) {
+                                if model.hasError(s) {
+                                    Image(systemName: "exclamationmark.circle.fill").font(.caption).foregroundStyle(.red)
+                                } else if model.answered(s) {
                                     let c = model.chosen(s).count
                                     Text(model.isRetry(s) ? "↻" : (s.multi ? "\(c)" : "✓")).font(.caption.weight(.semibold)).foregroundStyle(.green)
                                 }

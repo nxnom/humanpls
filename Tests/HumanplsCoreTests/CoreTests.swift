@@ -473,6 +473,26 @@ final class CoreTests: XCTestCase {
         XCTAssertTrue(w[1].hasPrefix("option C \"Try again\""))
     }
 
+    func testQuestionsAreRequiredUnlessOptional() throws {
+        let job = try job2()
+        var p = Picks()
+        XCTAssertEqual(p.missing(in: job).map { $0.id }, job.sections.map { $0.id })      // nothing picked: all are missing
+        p.chosen[job.sections[0].id] = ["A"]
+        p.retry = [job.sections[1].id]                                                    // "none of these" is an answer
+        XCTAssertEqual(p.missing(in: job).map { $0.id }, Array(job.sections.map { $0.id }.dropFirst(2)))
+        var n = Picks(); n.sectionNotes[job.sections[0].id] = "a note is not an answer"
+        XCTAssertFalse(n.answered(job.sections[0]))
+
+        var a = JobBuilder.PickArgs(); a.id = "o"; a.optional = true; a.positional = ["text:Yes", "text:No"]
+        let opt = try builder().pick(a)
+        XCTAssertEqual(opt.sections[0].optional, true)
+        XCTAssertTrue(Picks().missing(in: opt).isEmpty)
+
+        // a job from before this field existed (history, other clients) decodes, and its questions are required
+        let old = #"{"id":"q","multi":false,"items":[]}"#
+        XCTAssertTrue(try Coding.decoder().decode(Question.self, from: Data(old.utf8)).required)
+    }
+
     func testAnswerNoPickAndMulti() throws {
         var a = JobBuilder.PickArgs(); a.id = "pl"; a.multi = true
         a.positional = ["a.png::Wide", "b.wav", "c.mp4::Clip"]

@@ -33,6 +33,14 @@ public struct Picks: Codable, Sendable {
     }
 }
 
+extension Picks {
+    /// Answered = at least one option is picked, or "none of these" is chosen.
+    public func answered(_ q: Question) -> Bool { retry.contains(q.id) || !(chosen[q.id] ?? []).isEmpty }
+
+    /// The questions that still need an answer before the popup can be sent. Optional questions are never in it.
+    public func missing(in job: Job) -> [Question] { job.sections.filter { $0.required && !answered($0) } }
+}
+
 public enum AnswerText {
     /// A path with spaces is put in quotes so an agent can read it as one path.
     public static func quoted(_ path: String) -> String {

@@ -59,17 +59,6 @@ final class ShowModel: ObservableObject {
 
     var text: String { ShowAnswer.make(job: job, state: state) }
 
-    @Published var copied = false
-
-    func copyAnswer() {
-        for it in items where it.kind == .image {
-            if let p = it.path, store.has(p), let out = store.export(p) { state.annotated[it.key] = out }
-        }
-        Sender.copy(text)
-        copied = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { [weak self] in self?.copied = false }
-    }
-
     func quickLook() { QuickLook.shared.show(items.compactMap { $0.path }, index: index) }
 
     func finish(_ a: FinishAction) {
@@ -284,9 +273,9 @@ struct ShowRoot: View {
                     Button("Copy file path") { Sender.copy(p) }.fixedSize()
                 }
                 NoteField(placeholder: "Message for the agent (optional)", text: $model.state.message, minLines: 1, maxLines: 4, files: $model.state.files).frame(minWidth: 160, maxWidth: 360)
-                Button { model.copyAnswer() } label: {
-                    Label(model.copied ? "Copied" : "Copy answer", systemImage: model.copied ? "checkmark" : "doc.on.doc")
-                }.keyboardShortcut("c", modifiers: [.command, .shift]).help("Copy the answer text (⇧⌘C). The window stays open.").fixedSize()
+                Button { model.finish(.copy) } label: {
+                    Label("Copy answer", systemImage: "doc.on.doc")
+                }.keyboardShortcut("c", modifiers: [.command, .shift]).help("Copy the answer text and close this popup (⇧⌘C)").fixedSize()
                 Button(model.waiting ? "Send answer" : "Send") { model.finish(.send) }
                     .keyboardShortcut(.return, modifiers: .command).buttonStyle(.borderedProminent)
             }.padding(10)

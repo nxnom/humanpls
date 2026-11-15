@@ -10,11 +10,21 @@ final class FirstMouseHostingView<V: View>: NSHostingView<V> {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
 
+/// Popups share one window as tabs. AppKit offers a key shortcut (Command-Return = Send, Shift-Command-C = Copy) to the
+/// windows of the tabs in the background too, so without this the shortcut could send the answer of a popup you do not see.
+final class TabWindow: NSWindow {
+    var isFrontTab: Bool { tabGroup.map { $0.selectedWindow === self } ?? true }
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        isFrontTab ? super.performKeyEquivalent(with: event) : false
+    }
+}
+
 @MainActor
 final class PopupWindow: NSObject, NSWindowDelegate {
     let window: NSWindow
     let job: Job
     var finished = false
+    var shown = false                               // false in test mode, where no window opens
     var onDone: (FinishAction, String, Picks?) -> Void
     var autoFinish: ((FinishAction) -> Void)?       // test mode: finish like a person pressing the button
     var stopWaiting: (() -> Void)?                  // the command that waited for the answer is gone
@@ -23,10 +33,11 @@ final class PopupWindow: NSObject, NSWindowDelegate {
                   onDone: @escaping (FinishAction, String, Picks?) -> Void) {
         self.job = job; self.onDone = onDone
         self.sizeKey = "size." + autosave
-        window = NSWindow(contentRect: NSRect(origin: .zero, size: size),
+        window = TabWindow(contentRect: NSRect(origin: .zero, size: size),
                           styleMask: [.titled, .closable, .resizable, .miniaturizable], backing: .buffered, defer: false)
         super.init()
         window.title = title
+        window.tab.title = job.heading          // the tab shows the short name; the window title says "humanpls · name"
         window.level = .floating
         // Visible on every desktop (Space), also over a full-screen terminal, so it follows you while you decide.
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
@@ -57,7 +68,14 @@ final class PopupWindow: NSObject, NSWindowDelegate {
         UserDefaults.standard.set(NSStringFromSize(window.frame.size), forKey: sizeKey)
     }
 
-    func show() {
+    /// One window for all popups. When another popup is already on screen, this one is added to it as the last tab
+    /// and stays in the background: the person finishes the popup in front first. When a tab is answered or closed,
+    /// macOS shows the next tab; the window goes away with its last tab.
+    func show(after host: PopupWindow? = nil) {
+        if let h = host?.window, h.isVisible || h.isMiniaturized {
+            (h.tabGroup?.windows.last ?? h).addTabbedWindow(window, ordered: .above)
+            if h.tabGroup?.windows.contains(window) == true { NSApp.requestUserAttention(.informationalRequest); return }
+        }
         window.makeKeyAndOrderFront(nil)
         NSApp.activate()
     }
@@ -106,7 +124,7 @@ final class Controller {
                                 size: job.sections.count > 1 ? NSSize(width: 1120, height: 780) : NSSize(width: 1020, height: 740),
                                 content: PickRoot(model: model).onExitCommand { model.finish(.cancel) }, onDone: finishNow)
             model.onFinish = { [weak popup] a, t, p in popup?.finish(a, t, p) }
-            popup.autoFinish = { model.finish($0) }
+            popup.autoFinish = { model.finish($0, force: true) }
             popup.stopWaiting = { model.waiting = false }
         case .show:
             let model = ShowModel(job: job, waiting: wait)
@@ -117,11 +135,15 @@ final class Controller {
             popup.autoFinish = { model.finish($0) }
             popup.stopWaiting = { model.waiting = false }
         }
+        // the popup that has been waiting the longest still on screen: new popups become tabs of its window
+        let host = open.values.filter { !$0.finished && $0.shown }.min { $0.job.createdAt < $1.job.createdAt }
+        if let dir = env.cwd, !dir.isEmpty { popup.window.tab.toolTip = dir }     // which project asked
         open[job.id] = popup
         if let auto = Controller.autoAction(env) {
             DispatchQueue.main.asyncAfter(deadline: .now() + (env.autoDelay ?? 0)) { popup.autoFinish?(auto) }
         } else {
-            popup.show()
+            popup.shown = true
+            popup.show(after: host)
         }
     }
 
@@ -298,6 +320,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let win = NSMenu(title: "Window"); winItem.submenu = win
         win.addItem(withTitle: "Minimize", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
         win.addItem(withTitle: "Close", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+        // several popups are tabs of one window: Control-Tab and Shift-Command-] [ move between them, like in Safari
+        let tab = "\t"
+        let next = win.addItem(withTitle: "Show Next Tab", action: #selector(NSWindow.selectNextTab(_:)), keyEquivalent: tab)
+        next.keyEquivalentModifierMask = [.control]
+        let prev = win.addItem(withTitle: "Show Previous Tab", action: #selector(NSWindow.selectPreviousTab(_:)), keyEquivalent: tab)
+        prev.keyEquivalentModifierMask = [.control, .shift]
+        let next2 = win.addItem(withTitle: "Show Next Tab", action: #selector(NSWindow.selectNextTab(_:)), keyEquivalent: "}")
+        next2.keyEquivalentModifierMask = [.command]
+        let prev2 = win.addItem(withTitle: "Show Previous Tab", action: #selector(NSWindow.selectPreviousTab(_:)), keyEquivalent: "{")
+        prev2.keyEquivalentModifierMask = [.command]
         NSApplication.shared.windowsMenu = win
         return main
     }

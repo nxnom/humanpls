@@ -3,7 +3,7 @@
 ## CLI
 
 ```
-humanpls pick --id ID [--title T] [--question Q] [--multi] [--recommend KEY]... [--default KEY]... [--no-preselect]
+humanpls pick --id ID [--title T] [--question Q] [--multi] [--recommend KEY]... [--default KEY]... [--no-preselect] [--optional]
               [--items FILE.json] [--slice auto|COLSxROWS] [--section TITLE OPTION...]... [--wait] [--timeout SECONDS] [--dump-job] [OPTION...]
 humanpls show [--id ID] [--title T] [--compare] [--wait] [--dump-job] FILE_OR_FOLDER...
 humanpls reopen [ID]      humanpls list      humanpls quit      humanpls install-cli [DIR]      humanpls serve      humanpls selftest
@@ -24,11 +24,18 @@ An unknown extension is text if the start of the file is UTF-8 text, else a gene
 Every question has a built-in **None of these: make new options** choice (key `0`). The answer then says `none of these: try again`.
 Do not add your own "none of the above" or "try again" option: the command prints a note on stderr when an option looks like one.
 
+Every question is **required**: Send and Copy answer do not work until each question has a pick or "None of these".
+The questions without an answer are then marked in red. `--optional` (all questions) or `"optional": true` on a question in JSON
+turns this off for questions where "no pick" is a valid answer. An answer the person edits by hand in the Answer box is sent as it is.
+
 Exit codes: `0` answered or opened, `2` bad input, `3` popup closed without an answer (`--wait`), `4` timeout (`--wait`), `5` app problem.
 
 If the command that waits ends before the person answers (its `--timeout` runs out, the agent's shell kills it, the terminal closes),
 the popup **stays open** and switches to normal mode: **Send** now pastes the answer into the chat of the terminal that started it,
 as if `--wait` had not been used. The answer is not lost. Closing the popup without an answer is exit code 3.
+
+Popups that are open at the same time share one window, as tabs in the order they arrived. Send, Copy answer and cancel close
+that tab only. Copy answer puts the answer on the clipboard; with `--wait` the command also gets it (status `copied`).
 
 Without `--wait` the command prints `opened: ID (N items)` and returns. The answer is pasted into the terminal that ran the command.
 With `--wait` the command prints the answer text and returns; nothing is pasted.
@@ -47,7 +54,7 @@ A list, `{"items": [...]}` or `{"sections": [...]}`.
 ```
 
 Item keys: one of `file`, `text`, `markdown`, `code` (+ `language`), `html`, `url`; and `label`, `note`, `recommended`, `selected`.
-Relative `file` paths are relative to the JSON file. Question keys: `id`, `title`, `question`, `multi`, `recommend`, `default`, `preselect`, `slice`.
+Relative `file` paths are relative to the JSON file. Question keys: `id`, `title`, `question`, `multi`, `recommend`, `default`, `preselect`, `slice`, `optional`.
 
 ## Answer text
 

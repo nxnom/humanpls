@@ -58,11 +58,13 @@ public struct Question: Codable, Identifiable, Hashable, Sendable {
     public var multi: Bool
     public var items: [Item]
     public var slice: SliceSpec?         // set when the options are the cells of one image sheet
+    public var optional: Bool?           // true = Send works without an answer. Default: the question must be answered.
 
     public init(id: String, title: String? = nil, question: String? = nil, multi: Bool = false, items: [Item], slice: SliceSpec? = nil) {
         self.id = id; self.title = title; self.question = question; self.multi = multi; self.items = items; self.slice = slice
     }
     public var heading: String { title ?? id }
+    public var required: Bool { optional != true }
 }
 
 public enum JobMode: String, Codable, Sendable { case pick, show }

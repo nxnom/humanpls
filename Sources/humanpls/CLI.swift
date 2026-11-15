@@ -31,6 +31,7 @@ pick options:
   --recommend KEY       mark option KEY (A, B...) recommended (repeatable)
   --default KEY         pre-pick option KEY (repeatable)
   --no-preselect        do not pre-pick recommended options
+  --optional            the person may send without answering (default: every question needs a pick or "None of these")
   --wait                wait for the answer and print it (nothing is pasted into the chat)
   --timeout SECONDS     with --wait: give up after this time
   --dump-job            print the job as JSON and exit (no popup)
@@ -40,6 +41,10 @@ Built in, do not add them as options:
     make new options and ask again. Do not add your own "none", "none of the above" or "try again" option.
   - Every question has a note field, and the popup has a feedback field. The person can attach files to them
     (for example an image with the style they want). They come back as `attached: PATH; PATH`. Read those files.
+
+  - Every question must be answered: Send and Copy do not work until each question has a pick or "None of these".
+    So you always get an answer per question, also when you recommend nothing. Use --optional (or "optional": true
+    on a question in JSON) only when "no pick" is a valid answer.
 
 Without --wait, Send pastes the answer into the terminal that ran this command and presses Enter.
 """
@@ -160,6 +165,7 @@ func runPick(_ argv: [String]) {
         case "--recommend": a.recommend.append(value(s))
         case "--default": a.defaults = (a.defaults ?? []) + [value(s)]
         case "--no-preselect": a.noPreselect = true
+        case "--optional": a.optional = true
         case "--wait": wait = true
         case "--timeout": timeout = Double(value(s))
         case "--dump-job": dump = true

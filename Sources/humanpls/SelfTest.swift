@@ -113,6 +113,25 @@ enum SelfTest {
             pb.releaseGlobally()
         } catch { check("attach test failed: \(error)", false) }
 
+        // popups share one window as tabs: a key shortcut must only reach the tab in front
+        do {
+            func win() -> TabWindow {
+                let w = TabWindow(contentRect: NSRect(x: 0, y: 0, width: 300, height: 200), styleMask: [.titled, .closable], backing: .buffered, defer: false)
+                w.isReleasedWhenClosed = false
+                return w
+            }
+            let a = win(), b = win(), c = win()
+            check("tabs: a popup alone is the front tab", a.isFrontTab)
+            a.addTabbedWindow(b, ordered: .above); b.addTabbedWindow(c, ordered: .above)
+            check("tabs: new popups join the same window, in the order they arrived", a.tabGroup?.windows == [a, b, c])
+            check("tabs: a new popup does not take the place of the one in front", a.isFrontTab && !b.isFrontTab && !c.isFrontTab)
+            a.close()
+            check("tabs: closing the front popup shows the next one", b.isFrontTab && !c.isFrontTab && b.tabGroup?.windows == [b, c])
+            b.close()
+            check("tabs: the last popup is a window alone again", c.isFrontTab && (c.tabGroup?.windows.count ?? 1) == 1)
+            c.close()
+        }
+
         // the sidebar basket: two questions can both pick their option "B"; the rows must not be mixed up
         do {
             var args = JobBuilder.PickArgs(); args.id = "ids"

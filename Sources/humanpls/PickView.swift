@@ -55,7 +55,13 @@ final class PickModel: ObservableObject {
         picks.chosen[s.id] = on ? Set(s.items.map { $0.key }) : []
         if on { picks.retry.remove(s.id) }
     }
-    func answered(_ s: Question) -> Bool { isRetry(s) || !chosen(s).isEmpty }
+    func answered(_ s: Question) -> Bool { picks.answered(s) }
+
+    /// Set when Send or Copy was pressed while a question had no answer. The questions without an answer then show an error.
+    @Published var showErrors = false
+    @Published var errorJump: String?             // scroll to this question (the first one without an answer)
+    func hasError(_ s: Question) -> Bool { showErrors && s.required && !answered(s) }
+    var errorCount: Int { showErrors ? picks.missing(in: job).count : 0 }
     var answeredCount: Int { job.sections.filter(answered).count }
 
     func sectionNote(_ s: Question) -> Binding<String> {
@@ -125,17 +131,13 @@ final class PickModel: ObservableObject {
         }
     }
 
-    @Published var copied = false
-
-    /// Put the answer on the clipboard. The popup stays open, so you can still change it or press Send.
-    func copyAnswer() {
-        exportAnnotations(); exportCrops()
-        Sender.copy(text)
-        copied = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { [weak self] in self?.copied = false }
-    }
-
-    func finish(_ a: FinishAction) {
+    /// `force` skips the required check (test mode). An answer the person wrote by hand in the Answer box is sent as it is.
+    func finish(_ a: FinishAction, force: Bool = false) {
+        if a != .cancel, !force, override == nil, let first = picks.missing(in: job).first {
+            showErrors = true; errorJump = first.id
+            NSSound.beep()
+            return
+        }
         QuickLook.shared.close()
         if a != .cancel { exportAnnotations(); exportCrops() }
         onFinish(a, text, picks)
@@ -366,9 +368,10 @@ struct SectionView: View {
     /// The title of the question. With a single question, the title of the whole popup question is used.
     var titleText: String { section.question ?? (only ? model.job.question : nil) ?? section.heading }
     var subtitle: String {
-        let how = section.multi ? "Pick any" : "Pick one"
+        let how = (section.multi ? "Pick any" : "Pick one") + (section.required ? "" : " (optional)")
         return only ? how : "\(section.heading) · \(how.lowercased())"
     }
+    var error: Bool { model.hasError(section) }
 
     var gridColumns: [GridItem] {
         let kinds = Set(section.items.map { $0.kind })
@@ -399,6 +402,13 @@ struct SectionView: View {
                     Button(all ? "Clear" : "Select all") { model.selectAll(section, !all) }.controlSize(.small)
                 }
             }
+            if error {
+                Label("This question needs an answer. Pick an option, or choose \"None of these\".", systemImage: "exclamationmark.circle.fill")
+                    .font(.callout.weight(.medium)).foregroundStyle(.red)
+                    .padding(.horizontal, 12).padding(.vertical, 8).frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.red.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.red.opacity(0.55), lineWidth: 1))
+            }
             if section.slice != nil {
                 // the cells of an image sheet: compact tiles, many to a row
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 140, maximum: 230), spacing: 6)], spacing: 6) {
@@ -414,7 +424,8 @@ struct SectionView: View {
         }
         .padding(only ? 0 : 20)
         .background(only ? AnyShapeStyle(Color.clear) : AnyShapeStyle(Color.primary.opacity(0.035)), in: RoundedRectangle(cornerRadius: 16))
-        .overlay(RoundedRectangle(cornerRadius: 16).stroke(only ? Color.clear : Color.primary.opacity(0.10), lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(only ? Color.clear : (error ? Color.red.opacity(0.8) : Color.primary.opacity(0.10)), lineWidth: error ? 2 : 1))
+        .animation(.easeOut(duration: 0.15), value: error)
     }
 
     /// Fix the grid by hand when the automatic one is wrong.
@@ -480,6 +491,13 @@ struct PickRoot: View {
             }
             .focusable().focusEffectDisabled().focused($focused)
             .onAppear { focused = true }
+            .onChange(of: model.errorJump) { _, id in
+                guard let id else { return }
+                model.errorJump = nil
+                nav.q = id; nav.jumping = true
+                withAnimation(.easeInOut(duration: 0.3)) { proxy.scrollTo(id, anchor: .top) }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { nav.jumping = false }
+            }
             .onKeyPress(phases: .down) { k in handle(k, proxy) }
         }
     }
@@ -492,13 +510,19 @@ struct PickRoot: View {
                         SectionView(section: s, model: model).id(s.id)
                             .background(GeometryReader { g in Color.clear.preference(key: SecKey.self, value: [s.id: g.frame(in: .named("scroll")).minY]) })
                     }
-                    Color.clear.frame(height: max(0, outer.size.height - 320))
+                    // marks the end of the page, so we know when the scroll reached the bottom
+                    Color.clear.frame(height: 0)
+                        .background(GeometryReader { g in Color.clear.preference(key: SecKey.self, value: ["\u{0}end": g.frame(in: .named("scroll")).minY]) })
                 }.padding(20)
             }
             .coordinateSpace(name: "scroll")
             .onPreferenceChange(SecKey.self) { v in
                 guard !nav.jumping else { return }
-                let cur = secs.last(where: { (v[$0.id] ?? .infinity) <= 80 })?.id ?? secs.first?.id ?? ""
+                // The current question is the last one whose top passed the top of the page. A short last question can
+                // never get there, so at the bottom of the scroll the last question is the current one.
+                let scrolled = (secs.first.flatMap { v[$0.id] } ?? 0) < 10
+                let atEnd = scrolled && (v["\u{0}end"] ?? .infinity) <= outer.size.height + 4
+                let cur = (atEnd ? secs.last?.id : secs.last(where: { (v[$0.id] ?? .infinity) <= 80 })?.id) ?? secs.first?.id ?? ""
                 if cur != nav.q { nav.q = cur }
             }
         }.frame(minWidth: 520)
@@ -538,16 +562,21 @@ struct PickRoot: View {
                     .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.primary.opacity(0.14)))
             }
             HStack(spacing: 10) {
-                Text("\(model.answeredCount) of \(secs.count) answered").font(.caption).foregroundStyle(.secondary)
+                if model.errorCount > 0 {
+                    Label(model.errorCount == 1 ? "1 question needs an answer" : "\(model.errorCount) questions need an answer", systemImage: "exclamationmark.circle.fill")
+                        .font(.caption.weight(.semibold)).foregroundStyle(.red)
+                } else {
+                    Text("\(model.answeredCount) of \(secs.count) answered").font(.caption).foregroundStyle(.secondary)
+                }
                 Button { model.showPreview.toggle() } label: {
                     Label("Answer", systemImage: model.showPreview ? "chevron.down" : "chevron.up").labelStyle(.titleAndIcon)
                 }.controlSize(.small)
                 NoteField(placeholder: "Feedback for the agent (optional)", text: model.feedback, minLines: 1, maxLines: 4, files: model.feedbackFiles)
                 Button { if let s = currentSection { model.quickLook(s) } } label: { Image(systemName: "eye") }
                     .keyboardShortcut("y", modifiers: .command).help("Quick Look (Space)").controlSize(.small)
-                Button { model.copyAnswer() } label: {
-                    Label(model.copied ? "Copied" : "Copy answer", systemImage: model.copied ? "checkmark" : "doc.on.doc")
-                }.keyboardShortcut("c", modifiers: [.command, .shift]).help("Copy the answer text (⇧⌘C). The popup stays open.")
+                Button { model.finish(.copy) } label: {
+                    Label("Copy answer", systemImage: "doc.on.doc")
+                }.keyboardShortcut("c", modifiers: [.command, .shift]).help("Copy the answer text and close this popup (⇧⌘C)")
                 Button(model.waiting ? "Send answer" : "Send") { model.finish(.send) }
                     .keyboardShortcut(.return, modifiers: .command).buttonStyle(.borderedProminent)
             }

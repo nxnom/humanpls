@@ -186,6 +186,7 @@ public struct JobBuilder {
         public var recommend: [String] = []
         public var defaults: [String]?
         public var noPreselect = false
+        public var optional = false              // the questions may be sent without an answer
         public var itemsFile: String?
         public var slice: String?                 // "auto" or "4x3" (columns x rows): cut one image sheet into cells
         public var positional: [String] = []
@@ -227,6 +228,7 @@ public struct JobBuilder {
         guard !sections.isEmpty else { throw JobError("give options: file paths, --section TITLE OPTION..., or --items file.json") }
         let ids = sections.map { $0.id }
         guard Set(ids).count == ids.count else { throw JobError("question ids must be unique: \(ids)") }
+        if a.optional { for i in sections.indices where sections[i].optional == nil { sections[i].optional = true } }
         return Job(id: a.id, mode: .pick, title: a.title, question: a.question, sections: sections)
     }
 
@@ -275,6 +277,7 @@ public struct JobBuilder {
             return try section(id: id, title: title, question: question, multi: multi, items: items,
                                recommend: recommend, defaults: defaults, preselect: preselect, explicitSelected: picked)
         }
+        func opt(_ s: [String: Any], _ q: Question) -> Question { var q = q; q.optional = s["optional"] as? Bool; return q }
 
         if let obj = any as? [String: Any], let secs = obj["sections"] as? [[String: Any]] {
             return try secs.enumerated().map { (i, s) in
@@ -288,12 +291,12 @@ public struct JobBuilder {
                           let f = (raw[0] as? [String: Any])?["file"] as? String ?? (raw[0] as? String)?.components(separatedBy: "::")[0] else {
                         throw JobError("question \(id): slice needs exactly one item with a file (the sheet)")
                     }
-                    return try slicedQuestion(id: id, title: title, question: s["question"] as? String, multi: s["multi"] as? Bool ?? a.multi,
+                    return opt(s, try slicedQuestion(id: id, title: title, question: s["question"] as? String, multi: s["multi"] as? Bool ?? a.multi,
                                               file: resolve(f, base: base), spec: spec, recommend: recS, defaults: defS,
-                                              preselect: s["preselect"] as? Bool ?? !a.noPreselect)
+                                              preselect: s["preselect"] as? Bool ?? !a.noPreselect))
                 }
-                return try build(id: id, title: title, question: s["question"] as? String, multi: s["multi"] as? Bool ?? a.multi,
-                                 raw: s["items"] as? [Any] ?? [], recommend: recS, defaults: defS, preselect: s["preselect"] as? Bool ?? !a.noPreselect)
+                return opt(s, try build(id: id, title: title, question: s["question"] as? String, multi: s["multi"] as? Bool ?? a.multi,
+                                 raw: s["items"] as? [Any] ?? [], recommend: recS, defaults: defS, preselect: s["preselect"] as? Bool ?? !a.noPreselect))
             }
         }
         let list: [Any]
