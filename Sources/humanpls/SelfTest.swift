@@ -97,6 +97,22 @@ enum SelfTest {
         check("Edit menu: Undo is Command-Z", has("z", Selector(("undo:"))))
         check("Edit menu: Redo is Shift-Command-Z", has("z", Selector(("redo:")), [.command, .shift]))
 
+        // attachments: a screenshot on the clipboard becomes a PNG in the app folder; a copied file is used where it is; text is left alone
+        do {
+            let pb = NSPasteboard(name: NSPasteboard.Name("humanpls-selftest-\(getpid())"))
+            pb.clearContents(); pb.setString("just text", forType: .string)
+            check("attach: text on the clipboard is a normal paste, not a file", Attachments.fromPasteboard(pb).isEmpty)
+            pb.clearContents(); pb.writeObjects([URL(fileURLWithPath: sheet) as NSURL])
+            check("attach: a file copied in Finder is attached where it is", Attachments.fromPasteboard(pb) == [sheet])
+            pb.clearContents(); pb.setData(try Data(contentsOf: URL(fileURLWithPath: sheet)), forType: .png)
+            let got = Attachments.fromPasteboard(pb)
+            check("attach: an image on the clipboard is saved as a PNG in the app's attachments folder",
+                  got.count == 1 && got[0].hasPrefix(tmp + "/attachments/attached-") && NSImage(contentsOfFile: got[0]) != nil)
+            pb.setData(try Data(contentsOf: URL(fileURLWithPath: sheet)), forType: .png)
+            check("attach: two images in the same second get two files", Attachments.fromPasteboard(pb) != got)
+            pb.releaseGlobally()
+        } catch { check("attach test failed: \(error)", false) }
+
         // the sidebar basket: two questions can both pick their option "B"; the rows must not be mixed up
         do {
             var args = JobBuilder.PickArgs(); args.id = "ids"

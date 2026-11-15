@@ -35,6 +35,12 @@ pick options:
   --timeout SECONDS     with --wait: give up after this time
   --dump-job            print the job as JSON and exit (no popup)
 
+Built in, do not add them as options:
+  - Every question has a "None of these: make new options" choice. The answer then says `none of these: try again`:
+    make new options and ask again. Do not add your own "none", "none of the above" or "try again" option.
+  - Every question has a note field, and the popup has a feedback field. The person can attach files to them
+    (for example an image with the style they want). They come back as `attached: PATH; PATH`. Read those files.
+
 Without --wait, Send pastes the answer into the terminal that ran this command and presses Enter.
 """
 
@@ -205,6 +211,7 @@ func submit(_ job: Job, wait: Bool, timeout: Double?, dump: Bool) {
         print(String(data: (try? e.encode(job)) ?? Data(), encoding: .utf8) ?? "")
         exit(0)
     }
+    for w in JobBuilder.warnings(job) { FileHandle.standardError.write(Data("humanpls: note: \(w)\n".utf8)) }
     let (fd, reader) = roundTrip(Request(cmd: job.mode.rawValue, job: job, env: callerEnv(), wait: wait))
     guard let first = readResponse(reader) else { fail("the app closed the connection", 5) }
     if first.type == "error" { fail(first.message ?? "error", 5) }

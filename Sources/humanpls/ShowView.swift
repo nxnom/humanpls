@@ -283,7 +283,7 @@ struct ShowRoot: View {
                     Button("Reveal in Finder") { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: p)]) }.fixedSize()
                     Button("Copy file path") { Sender.copy(p) }.fixedSize()
                 }
-                NoteField(placeholder: "Message for the agent (optional)", text: $model.state.message, minLines: 1, maxLines: 4).frame(minWidth: 160, maxWidth: 360)
+                NoteField(placeholder: "Message for the agent (optional)", text: $model.state.message, minLines: 1, maxLines: 4, files: $model.state.files).frame(minWidth: 160, maxWidth: 360)
                 Button { model.copyAnswer() } label: {
                     Label(model.copied ? "Copied" : "Copy answer", systemImage: model.copied ? "checkmark" : "doc.on.doc")
                 }.keyboardShortcut("c", modifiers: [.command, .shift]).help("Copy the answer text (⇧⌘C). The window stays open.").fixedSize()

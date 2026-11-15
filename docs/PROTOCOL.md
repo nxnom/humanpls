@@ -21,6 +21,9 @@ Short text (up to 80 characters, one line) is shown as a big chip, longer text a
 Kinds are chosen from the file extension: image, video, audio, markdown, code (language from the extension), html, pdf, text.
 An unknown extension is text if the start of the file is UTF-8 text, else a generic file card.
 
+Every question has a built-in **None of these: make new options** choice (key `0`). The answer then says `none of these: try again`.
+Do not add your own "none of the above" or "try again" option: the command prints a note on stderr when an option looks like one.
+
 Exit codes: `0` answered or opened, `2` bad input, `3` popup closed without an answer (`--wait`), `4` timeout (`--wait`), `5` app problem.
 
 If the command that waits ends before the person answers (its `--timeout` runs out, the agent's shell kills it, the terminal closes),
@@ -64,6 +67,18 @@ Voice: none of these: try again | note: all too young
 Plates: A "Living room" (a.png); C "Garden" (c.png) | annotated: A "Living room" /path/a-annotated-251115-021000.png
 feedback: same house as episode 1
 ```
+
+The person can attach files to a note, to the feedback, and to the message in `show` (paperclip button, drop, or `⌘V` of a
+copied file or image). They are listed as `attached:` with `; ` between paths. A file on disk keeps its path; a pasted image
+(a screenshot) is saved in the app folder under `attachments/`. A path with spaces is in quotes.
+
+```
+[cover] none of these: try again | note: more like this | attached: /Users/me/Desktop/ref.png
+feedback: same colors as the old site
+attached: /Users/me/Library/Application Support/humanpls/attachments/attached-251115-021000.png
+```
+
+Without feedback text the line is `feedback: attached: PATH`. In `show` the `attached:` line comes after the message.
 
 A picked cell of a sheet names its row and column, and the cut-out file follows (full resolution, in the app folder):
 

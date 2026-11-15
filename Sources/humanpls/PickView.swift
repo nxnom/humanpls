@@ -62,6 +62,10 @@ final class PickModel: ObservableObject {
         Binding(get: { self.picks.sectionNotes[s.id] ?? "" }, set: { self.picks.sectionNotes[s.id] = $0 })
     }
     var feedback: Binding<String> { Binding(get: { self.picks.feedback }, set: { self.picks.feedback = $0 }) }
+    func sectionFiles(_ s: Question) -> Binding<[String]> {
+        Binding(get: { self.picks.sectionFiles[s.id] ?? [] }, set: { self.picks.sectionFiles[s.id] = $0 })
+    }
+    var feedbackFiles: Binding<[String]> { Binding(get: { self.picks.feedbackFiles }, set: { self.picks.feedbackFiles = $0 }) }
 
     /// Annotated images are written to PNG files when the answer is sent.
     func exportAnnotations() {
@@ -406,7 +410,7 @@ struct SectionView: View {
                 }
             }
             retryCard
-            NoteField(placeholder: "Add a note about \(only ? "your choice" : section.heading.lowercased()) (optional)", text: model.sectionNote(section), minLines: 2)
+            NoteField(placeholder: "Add a note about \(only ? "your choice" : section.heading.lowercased()) (optional)", text: model.sectionNote(section), minLines: 2, files: model.sectionFiles(section))
         }
         .padding(only ? 0 : 20)
         .background(only ? AnyShapeStyle(Color.clear) : AnyShapeStyle(Color.primary.opacity(0.035)), in: RoundedRectangle(cornerRadius: 16))
@@ -538,7 +542,7 @@ struct PickRoot: View {
                 Button { model.showPreview.toggle() } label: {
                     Label("Answer", systemImage: model.showPreview ? "chevron.down" : "chevron.up").labelStyle(.titleAndIcon)
                 }.controlSize(.small)
-                NoteField(placeholder: "Feedback for the agent (optional)", text: model.feedback, minLines: 1, maxLines: 4)
+                NoteField(placeholder: "Feedback for the agent (optional)", text: model.feedback, minLines: 1, maxLines: 4, files: model.feedbackFiles)
                 Button { if let s = currentSection { model.quickLook(s) } } label: { Image(systemName: "eye") }
                     .keyboardShortcut("y", modifiers: .command).help("Quick Look (Space)").controlSize(.small)
                 Button { model.copyAnswer() } label: {

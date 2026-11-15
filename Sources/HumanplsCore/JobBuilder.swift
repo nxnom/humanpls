@@ -155,6 +155,27 @@ public struct JobBuilder {
         return r.isEmpty ? fallback : r
     }
 
+    // MARK: options that repeat the built-in "None of these"
+
+    /// Every question already has a "None of these: make new options" choice and a note field.
+    /// Agents that do not know this add their own. This finds them, so the command can say so.
+    public static func repeatsBuiltInNone(_ i: Item) -> Bool {
+        let t = (i.answerName ?? i.text ?? "").lowercased().trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        if t.hasPrefix("none of") || t.hasPrefix("neither of") { return true }
+        return ["none", "neither", "try again", "retry", "regenerate", "make new options", "new options", "generate more", "more options"].contains(t)
+    }
+
+    /// One warning line per option that repeats the built-in choice. Empty when the job is fine.
+    public static func warnings(_ job: Job) -> [String] {
+        guard job.mode == .pick else { return [] }
+        return job.sections.flatMap { q in
+            q.items.filter(repeatsBuiltInNone).map { i in
+                "option \(i.key) \"\(i.answerName ?? i.text ?? "")\"\(job.sections.count > 1 ? " in \(q.heading)" : "") repeats a built-in choice: "
+                + "every question already has \"None of these: make new options\" (the answer says `none of these: try again`). Leave this option out next time."
+            }
+        }
+    }
+
     // MARK: pick
 
     public struct PickArgs {

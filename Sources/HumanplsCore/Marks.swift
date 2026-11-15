@@ -22,6 +22,7 @@ public struct ShowState: Codable, Sendable {
     public var marks: [String: [Mark]] = [:]          // item key -> marks, in time order
     public var annotated: [String: String] = [:]      // item key -> path of the annotated PNG
     public var message: String = ""
+    public var files: [String] = []                   // files the person attached to the message
     public init() {}
 
     public mutating func addMark(_ key: String, time: Double) -> Mark {
@@ -57,6 +58,7 @@ public enum ShowAnswer {
         }
         let m = state.message.trimmingCharacters(in: .whitespacesAndNewlines)
         if !m.isEmpty { lines.append(m) }
+        if let a = AnswerText.attached(state.files) { lines.append(a) }
         return lines.joined(separator: "\n")
     }
 }

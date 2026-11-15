@@ -8,8 +8,23 @@ public struct Picks: Codable, Sendable {
     public var annotated: [String: [String: String]] = [:]    // question id -> option key -> annotated PNG path
     public var crops: [String: [String: String]] = [:]        // question id -> option key -> exported crop PNG path
     public var feedback: String = ""
+    public var sectionFiles: [String: [String]] = [:]    // question id -> files the person attached to the note
+    public var feedbackFiles: [String] = []               // files the person attached to the feedback
 
     public init() {}
+
+    /// Every key is optional, so an older history file (written before a field existed) still opens.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        chosen = try c.decodeIfPresent([String: Set<String>].self, forKey: .chosen) ?? [:]
+        retry = try c.decodeIfPresent(Set<String>.self, forKey: .retry) ?? []
+        sectionNotes = try c.decodeIfPresent([String: String].self, forKey: .sectionNotes) ?? [:]
+        annotated = try c.decodeIfPresent([String: [String: String]].self, forKey: .annotated) ?? [:]
+        crops = try c.decodeIfPresent([String: [String: String]].self, forKey: .crops) ?? [:]
+        feedback = try c.decodeIfPresent(String.self, forKey: .feedback) ?? ""
+        sectionFiles = try c.decodeIfPresent([String: [String]].self, forKey: .sectionFiles) ?? [:]
+        feedbackFiles = try c.decodeIfPresent([String].self, forKey: .feedbackFiles) ?? []
+    }
 
     public init(job: Job) {
         for s in job.sections {
@@ -22,6 +37,11 @@ public enum AnswerText {
     /// A path with spaces is put in quotes so an agent can read it as one path.
     public static func quoted(_ path: String) -> String {
         path.contains(where: { $0.isWhitespace }) ? "\"\(path)\"" : path
+    }
+
+    /// Files the person attached: `attached: /a/ref.png; "/b/my style.png"`. nil when there are none.
+    public static func attached(_ files: [String]) -> String? {
+        files.isEmpty ? nil : "attached: " + files.map(quoted).joined(separator: "; ")
     }
 
     /// One line per question. A single question uses the short form:
@@ -40,6 +60,7 @@ public enum AnswerText {
         if many { lines.insert("[\(job.id)]", at: 0) }
         let fb = picks.feedback.trimmingCharacters(in: .whitespacesAndNewlines)
         if !fb.isEmpty { lines.append("feedback: \(fb)") }
+        if let a = attached(picks.feedbackFiles) { lines.append(fb.isEmpty ? "feedback: \(a)" : a) }
         return lines.joined(separator: "\n")
     }
 
@@ -59,6 +80,7 @@ public enum AnswerText {
         if let n = picks.sectionNotes[s.id]?.trimmingCharacters(in: .whitespacesAndNewlines), !n.isEmpty {
             out += " | note: \(n)"
         }
+        if let a = attached(picks.sectionFiles[s.id] ?? []) { out += " | \(a)" }
         // the picked cells of an image sheet, cut out as files
         let cropped = items(of: s, picks).compactMap { i in picks.crops[s.id]?[i.key].map { (i, $0) } }
         if !cropped.isEmpty { out += " | crops: " + cropped.map { "\($0.key) \(quoted($1))" }.joined(separator: "; ") }

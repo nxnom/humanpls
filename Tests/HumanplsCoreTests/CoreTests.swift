@@ -435,6 +435,44 @@ final class CoreTests: XCTestCase {
                        "[ep02]\nName: B \"Maung\"\nVoice: none of these: try again | note: all too young")
     }
 
+    func testAnswerWithAttachedFiles() throws {
+        let job = try job2()
+        var p = Picks(job: job)
+        p.chosen["name"] = ["B"]
+        p.retry = ["voice"]
+        p.sectionNotes["voice"] = "like this one"
+        p.sectionFiles["voice"] = ["/tmp/ref.wav"]
+        p.sectionFiles["name"] = ["/tmp/my style.png"]
+        p.feedback = "same mood"
+        p.feedbackFiles = ["/tmp/a.png", "/tmp/b c.png"]
+        XCTAssertEqual(AnswerText.make(job: job, picks: p),
+                       "[ep02]\nName: B \"Maung\" | attached: \"/tmp/my style.png\"\n"
+                       + "Voice: none of these: try again | note: like this one | attached: /tmp/ref.wav\n"
+                       + "feedback: same mood\nattached: /tmp/a.png; \"/tmp/b c.png\"")
+        p.feedback = ""
+        XCTAssertTrue(AnswerText.make(job: job, picks: p).hasSuffix("\nfeedback: attached: /tmp/a.png; \"/tmp/b c.png\""))
+
+        var s = ShowState(); s.message = "like this"; s.files = ["/tmp/ref.png"]
+        let show = Job(id: "look", mode: .show, sections: [Question(id: "files", items: [])])
+        XCTAssertEqual(ShowAnswer.make(job: show, state: s), "[look]\nlike this\nattached: /tmp/ref.png")
+    }
+
+    func testOldHistoryPicksStillOpen() throws {
+        // a history file written before attachments existed has no sectionFiles / feedbackFiles
+        let old = #"{"chosen":{"q":["A"]},"retry":[],"sectionNotes":{},"annotated":{},"crops":{},"feedback":"hi"}"#
+        let p = try Coding.decoder().decode(Picks.self, from: Data(old.utf8))
+        XCTAssertEqual(p.chosen["q"], ["A"]); XCTAssertEqual(p.feedback, "hi"); XCTAssertEqual(p.feedbackFiles, [])
+    }
+
+    func testWarnsAboutOptionsThatRepeatTheBuiltInNone() throws {
+        var a = JobBuilder.PickArgs(); a.id = "n"
+        a.positional = ["text:Aung", "text:None of the above", "text:Try again", "text:Nonee", "text:No"]
+        let w = JobBuilder.warnings(try builder().pick(a))
+        XCTAssertEqual(w.count, 2)
+        XCTAssertTrue(w[0].hasPrefix("option B \"None of the above\" repeats a built-in choice"))
+        XCTAssertTrue(w[1].hasPrefix("option C \"Try again\""))
+    }
+
     func testAnswerNoPickAndMulti() throws {
         var a = JobBuilder.PickArgs(); a.id = "pl"; a.multi = true
         a.positional = ["a.png::Wide", "b.wav", "c.mp4::Clip"]
