@@ -125,6 +125,18 @@ enum SelfTest {
             try Data("another file".utf8).write(to: URL(fileURLWithPath: v))
             Cache.refresh(v)
             check("cache: a new file at the same path gets a new player", Cache.player(v) !== first)
+            // live: the file is written again while a popup that shows it is open
+            let w = FileWatch.shared
+            w.add([v])
+            check("watch: nothing happens while the file stays the same", w.look().isEmpty && w.version(v) == 0)
+            let before = Cache.player(v)
+            try FileManager.default.removeItem(atPath: v)
+            check("watch: a deleted file keeps the old one on screen", w.look().isEmpty && w.look().isEmpty && Cache.player(v) === before)
+            try Data("a third file, longer".utf8).write(to: URL(fileURLWithPath: v))
+            check("watch: a new file is not loaded on the first look (it may still be written)", w.look().isEmpty)
+            check("watch: on the next look the new file is loaded again", w.look() == [v] && w.version(v) == 1 && Cache.player(v) !== before)
+            check("watch: and then it is quiet again", w.look().isEmpty && w.version(v) == 1)
+            w.remove([v])
             let img = Cache.stamp(sheet)
             check("cache: an unchanged file has the same stamp", Cache.stamp(sheet) == img)
         } catch { check("cache test failed: \(error)", false) }

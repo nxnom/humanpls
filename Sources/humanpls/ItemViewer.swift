@@ -12,7 +12,7 @@ struct ItemViewer: View {
         if !fileExists(item.path) {
             MissingFile(path: item.path ?? "").padding(30).frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
-            content
+            Fresh(path: item.path) { content }
         }
     }
 

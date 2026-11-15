@@ -75,6 +75,7 @@ final class ShowModel: ObservableObject {
 struct Thumb: View {
     let item: Item
     @State var img: NSImage? = nil
+    @ObservedObject var watch = FileWatch.shared
     var body: some View {
         Color.black.opacity(0.25)
             .overlay {
@@ -91,7 +92,7 @@ struct Thumb: View {
                 }
             }
             .clipped()
-            .task(id: item.key) {
+            .task(id: "\(item.key) \(watch.version(item.path))") {
                 guard let p = item.path else { return }
                 if let c = item.crop { img = await Cache.cell(p, c, maxPixel: 300) }
                 else if item.kind == .image { img = await Cache.thumb(p, maxPixel: 300) }
@@ -127,8 +128,9 @@ enum Info {
 struct InfoText: View {
     let item: Item
     @State var text = ""
+    @ObservedObject var watch = FileWatch.shared
     var body: some View {
-        Text(text).font(.caption).foregroundStyle(.secondary).task(id: item.key) { text = await Info.make(item) }
+        Text(text).font(.caption).foregroundStyle(.secondary).task(id: "\(item.key) \(watch.version(item.path))") { text = await Info.make(item) }
     }
 }
 
@@ -222,11 +224,11 @@ struct CompareView: View {
             }.padding(.horizontal, 10).padding(.vertical, 6).background(.bar)
             if model.compareMode == 0 {
                 HStack(spacing: 1) {
-                    ZoomImage(path: a.path ?? "", hub: hub).overlay(alignment: .topLeading) { tag("A", a) }
-                    ZoomImage(path: b.path ?? "", hub: hub).overlay(alignment: .topLeading) { tag("B", b) }
+                    Fresh(path: a.path) { ZoomImage(path: a.path ?? "", hub: hub) }.overlay(alignment: .topLeading) { tag("A", a) }
+                    Fresh(path: b.path) { ZoomImage(path: b.path ?? "", hub: hub) }.overlay(alignment: .topLeading) { tag("B", b) }
                 }.background(Color.black)
             } else {
-                ZoomImage(path: (model.showB ? b : a).path ?? "")
+                Fresh(path: (model.showB ? b : a).path) { ZoomImage(path: (model.showB ? b : a).path ?? "") }
                     .overlay(alignment: .topLeading) { tag(model.showB ? "B" : "A", model.showB ? b : a) }
             }
         }

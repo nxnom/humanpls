@@ -225,7 +225,7 @@ struct OptionCard: View {
     }
 
     @ViewBuilder var content: some View {
-        if !fileExists(item.path) { MissingFile(path: item.path ?? "") } else { kindContent }
+        if !fileExists(item.path) { MissingFile(path: item.path ?? "") } else { Fresh(path: item.path) { kindContent } }
     }
 
     @ViewBuilder var kindContent: some View {
@@ -316,7 +316,7 @@ struct CellSheet: View {
                 Text("Pinch to zoom · double-click: fit / 100%").font(.caption).foregroundStyle(.secondary)
                 Button("Done") { dismiss() }.keyboardShortcut(.escape, modifiers: []) }.padding(10)
             Divider()
-            ZoomImage(path: path, crop: crop)
+            Fresh(path: path) { ZoomImage(path: path, crop: crop) }
         }.frame(minWidth: 700, minHeight: 520)
     }
 }
@@ -333,7 +333,7 @@ struct ImageSheet: View {
                 Button("Done") { dismiss() }.keyboardShortcut(.escape, modifiers: []) }.padding(10)
             Divider()
             AnnotateBar(store: store, path: path)
-            AnnotatableImage(path: path, store: store)
+            Fresh(path: path) { AnnotatableImage(path: path, store: store) }
         }.frame(minWidth: 800, minHeight: 580)
     }
 }
@@ -347,7 +347,7 @@ struct VideoSheet: View {
                 Text("J ◀◀  K pause  L ▶▶  ·  ← → one frame  ·  Esc to close").font(.caption).foregroundStyle(.secondary)
                 Button("Done") { dismiss() }.keyboardShortcut(.escape, modifiers: []) }.padding(10)
             Divider()
-            VideoViewer(path: path)
+            Fresh(path: path) { VideoViewer(path: path) }
         }.frame(minWidth: 820, minHeight: 560)
     }
 }

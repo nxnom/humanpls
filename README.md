@@ -65,7 +65,7 @@ The picture above is one popup with **four questions** for a website launch. The
 - **The popup** opens on the screen where your mouse is, is visible on every desktop (also over a full-screen terminal), and remembers its size.
 - **Keyboard**: `A`-`Z` pick, `0` none of these, `[` `]` change question, `Space` or `⌘Y` Quick Look, `⌘↩` send, `⇧⌘C` copy the answer, `⌃⇥` next popup, `Esc` cancel. The letter shortcuts are off while you type in a text field, where `⌘A` `⌘C` `⌘V` `⌘X` `⌘Z` work as usual (the app has a hidden Edit menu for this).
 
-Files are read from the path the agent gave. Nothing is copied. The only new files are annotated images and cut-out cells: they are written to `~/Library/Application Support/humanpls/annotations/` and `.../crops/` and deleted after 14 days.
+Files are read from the path the agent gave. Nothing is copied. If the agent writes a file again at the same path (renders the video again, deletes it and makes a new one), the popup loads the new file: when it opens, and also while it is open (it looks once a second and waits until the file stops changing). The only new files are annotated images and cut-out cells: they are written to `~/Library/Application Support/humanpls/annotations/` and `.../crops/` and deleted after 14 days.
 
 ## Logo
 

@@ -98,6 +98,8 @@ final class PopupWindow: NSObject, NSWindowDelegate {
 final class Controller {
     let history = HistoryStore()
     var open: [String: PopupWindow] = [:]
+    static func files(_ job: Job) -> Set<String> { Set(job.sections.flatMap { $0.items }.compactMap { $0.path }) }
+
     /// Test mode (set by the CLI per request): answer at once with the default picks and open no window.
     static func autoAction(_ env: ClientEnv) -> FinishAction? {
         switch env.autoAnswer {
@@ -111,7 +113,9 @@ final class Controller {
     func open(job: Job, picks: Picks? = nil, env: ClientEnv, wait: Bool, reply: @escaping (Response) -> Void) {
         open[job.id]?.finish(.cancel, "", nil)           // same id again: replace the old popup
         history.save(HistoryEntry(job: job, picks: picks))
-        for it in job.sections.flatMap({ $0.items }) { if let p = it.path { Cache.refresh(p) } }   // a file may be new at the same path
+        let files = Controller.files(job)
+        files.forEach(Cache.refresh)             // a file may be new at the same path
+        FileWatch.shared.add(files)              // and may be written again while the popup is open
         reply(Response(type: "accepted", message: job.id))
 
         let popup: PopupWindow
@@ -158,6 +162,7 @@ final class Controller {
     var gone: Set<String> = []
 
     func finished(job: Job, action: FinishAction, text: String, picks: Picks?, env: ClientEnv, wait waited: Bool, reply: @escaping (Response) -> Void) {
+        FileWatch.shared.remove(Controller.files(job))
         let wait = waited && !gone.contains(job.id)
         gone.remove(job.id)
         if open[job.id]?.finished == true { open[job.id] = nil }

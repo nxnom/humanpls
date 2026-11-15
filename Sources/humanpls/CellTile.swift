@@ -12,6 +12,7 @@ struct CellTile: View {
     @State var thumb: NSImage? = nil
     @State var zoom = false
     @State var play = false
+    @ObservedObject var watch = FileWatch.shared
 
     var on: Bool { model.chosen(section).contains(item.key) }
     func pick() { model.toggle(section, item.key) }
@@ -51,7 +52,7 @@ struct CellTile: View {
         .padding(6)
         .selectable(on, pick)
         .onHover { if $0 { model.hovered = (section.id, item.key) } }
-        .task(id: item.crop) {
+        .task(id: "\(String(describing: item.crop)) \(watch.version(item.path))") {
             guard let p = item.path else { return }
             if let c = item.crop { thumb = await Cache.cell(p, c, maxPixel: 420) }
             else if item.kind == .video { thumb = await Cache.poster(p) }
