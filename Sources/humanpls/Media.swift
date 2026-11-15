@@ -17,8 +17,34 @@ enum Cache {
     static var players: [String: AVPlayer] = [:]
     static var audio: [String: AudioModel] = [:]
 
+    /// What each file looked like (modification time and size) when it was cached.
+    static var stamps: [String: String] = [:]
+
+    static func stamp(_ path: String) -> String {
+        let a = try? FileManager.default.attributesOfItem(atPath: path)
+        let t = (a?[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0
+        return "\(t)|\(a?[.size] as? Int ?? -1)|\(a?[.systemFileNumber] as? Int ?? -1)"
+    }
+
+    /// Called for every file of a popup when it opens. The app lives for days and agents write a new file to the same
+    /// path (render the video again, delete and create). If the file is not the one we cached, forget everything about
+    /// it: the old player would show the old video, or black when the old file was deleted.
+    static func refresh(_ path: String) {
+        let now = stamp(path)
+        if let old = stamps[path], old != now {
+            players[path]?.pause(); players[path] = nil
+            audio[path]?.stop(); audio[path] = nil
+            posters[path] = nil; sheets[path] = nil
+            thumbs = thumbs.filter { !$0.key.hasPrefix(path + "|") }
+            cells = cells.filter { !$0.key.hasPrefix(path + "|") }
+            Info.cache[path] = nil
+        }
+        stamps[path] = now
+    }
+
     static func thumb(_ path: String, maxPixel: Int = 900) async -> NSImage? {
-        if let t = thumbs[path] { return t }
+        let key = "\(path)|\(maxPixel)"          // a small picture made for a chip must not be reused for a big card
+        if let t = thumbs[key] { return t }
         let cg: CGImage? = await Task.detached(priority: .userInitiated) {
             guard let src = CGImageSourceCreateWithURL(URL(fileURLWithPath: path) as CFURL, nil) else { return nil }
             let o: [CFString: Any] = [kCGImageSourceCreateThumbnailFromImageAlways: true,
@@ -28,7 +54,7 @@ enum Cache {
         }.value
         guard let cg else { return nil }
         let img = NSImage(cgImage: cg, size: NSSize(width: cg.width, height: cg.height))
-        thumbs[path] = img
+        thumbs[key] = img
         return img
     }
 

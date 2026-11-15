@@ -111,6 +111,7 @@ final class Controller {
     func open(job: Job, picks: Picks? = nil, env: ClientEnv, wait: Bool, reply: @escaping (Response) -> Void) {
         open[job.id]?.finish(.cancel, "", nil)           // same id again: replace the old popup
         history.save(HistoryEntry(job: job, picks: picks))
+        for it in job.sections.flatMap({ $0.items }) { if let p = it.path { Cache.refresh(p) } }   // a file may be new at the same path
         reply(Response(type: "accepted", message: job.id))
 
         let popup: PopupWindow

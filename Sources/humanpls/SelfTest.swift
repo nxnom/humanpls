@@ -113,6 +113,22 @@ enum SelfTest {
             pb.releaseGlobally()
         } catch { check("attach test failed: \(error)", false) }
 
+        // a file written again at the same path (an agent renders the video again) must not come from the cache
+        do {
+            let v = tmp + "/clip.mp4"
+            try Data("one".utf8).write(to: URL(fileURLWithPath: v))
+            Cache.refresh(v)
+            let first = Cache.player(v)
+            Cache.refresh(v)
+            check("cache: the same file keeps its player", Cache.player(v) === first)
+            try FileManager.default.removeItem(atPath: v)
+            try Data("another file".utf8).write(to: URL(fileURLWithPath: v))
+            Cache.refresh(v)
+            check("cache: a new file at the same path gets a new player", Cache.player(v) !== first)
+            let img = Cache.stamp(sheet)
+            check("cache: an unchanged file has the same stamp", Cache.stamp(sheet) == img)
+        } catch { check("cache test failed: \(error)", false) }
+
         // popups share one window as tabs: a key shortcut must only reach the tab in front
         do {
             func win() -> TabWindow {
