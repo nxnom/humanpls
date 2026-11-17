@@ -115,10 +115,6 @@ docs/PROTOCOL.md       the CLI, the socket protocol, the JSON options format and
 
 The visual parts (layout, clicks, zoom feel) are checked by hand.
 
-## maggot
-
-The `humanpls` maggot tool is a bridge: it finds the `humanpls` command and passes the arguments on. It lives in the maggot drafts folder, not in this repo.
-
 ## License
 
 MIT, see `LICENSE`. The app includes marked (MIT) and highlight.js (BSD-3-Clause), see `THIRD_PARTY.md`.
