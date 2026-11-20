@@ -188,8 +188,12 @@ final class Controller {
 
     func reopen(ref: String?, env: ClientEnv) -> Response {
         guard let e = history.find(ref) else { return Response(type: "error", message: "nothing to reopen") }
-        var job = e.job
-        job.createdAt = Date()
+        let job = e.job          // keep createdAt: the history file name uses it, a new date would save a duplicate entry
+        if let p = open[job.id], !p.finished {      // already on screen: show it, do not open a second one
+            p.window.makeKeyAndOrderFront(nil)
+            NSApp.activate()
+            return Response(type: "accepted", message: "already open \(job.id)")
+        }
         open(job: job, picks: e.picks, env: env, wait: false) { _ in }
         return Response(type: "accepted", message: "reopened \(job.id)")
     }
